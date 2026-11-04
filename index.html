@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Pure Angle Vector Trace</title>
+    <title>Iron Man WebXR HUD - Robust UI Trace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // PURE ANGLE TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. 360 VECTOR UNLOCKED</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // ROBUST UI TRACE</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. RELIABLE HUD VECTOR ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -121,13 +121,14 @@
         }
 
         function createCameraSpaceHUD() {
+            // Просторный холст с запасом по 200 пикселей со всех сторон для гарантированной видимости линии
             hudCardCanvas = document.createElement('canvas');
-            hudCardCanvas.width = 900;
-            hudCardCanvas.height = 600; 
+            hudCardCanvas.width = 912;
+            hudCardCanvas.height = 700;
             hudCardCtx = hudCardCanvas.getContext('2d');
 
             const texture = new THREE.CanvasTexture(hudCardCanvas);
-            const geometry = new THREE.PlaneGeometry(0.60, 0.40); 
+            const geometry = new THREE.PlaneGeometry(0.65, 0.50); 
             const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthTest: false });
 
             hudCardMesh = new THREE.Mesh(geometry, material);
@@ -140,47 +141,41 @@
 
         function updateHUDCanvasTexture(data) {
             const ctx = hudCardCtx;
-            ctx.clearRect(0, 0, 900, 600);
+            ctx.clearRect(0, 0, 912, 700);
 
-            const cx = 194;
-            const cy = 150;
+            // Координаты отрисовки самой инфо-карточки посередине холста
+            const cx = 200;
+            const cy = 200;
             const w = 512;
             const h = 300;
 
-            // --- ЧИСТЫЙ И ТОЧНЫЙ ВЕКТОР ТРЕЙСА (БЕЗ ДЕРГАНИЙ И ОГРАНИЧЕНИЙ ГОРИЗОНТА) ---
+            // --- НОВАЯ НАДЕЖНАЯ ЛОГИКА ТРЕЙСА ---
             ctx.save();
             ctx.strokeStyle = '#00f0ff';
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 5;
             ctx.shadowColor = '#00f0ff';
-            ctx.shadowBlur = 12;
+            ctx.shadowBlur = 15;
 
-            // Центр карточки на холсте
-            const cardCenterX = cx + w / 2;
-            const cardCenterY = cy + h / 2;
+            // Определяем сторону, откуда растет палочка (левый или правый край панели)
+            const targetIsLeft = data.targetProjX < data.hudX;
+            const startX = targetIsLeft ? cx : cx + w;
+            const startY = cy + h / 2; // Строго по центру высоты панели
 
-            // Определяем, с какого бокового края карточки пустить палочку (слева или справа)
-            const targetIsToTheLeft = data.targetProjX < data.hudX;
-            const startX = targetIsToTheLeft ? cx : cx + w;
-            const startY = cardCenterY;
+            // Вычисляем отклонение по вертикали и горизонтали на основе разницы позиций
+            const diffX = data.targetProjX - data.hudX;
+            const diffY = data.targetProjY - data.hudY;
 
-            // Направление к цели в пикселях холста (прямое вычисление разницы экранных координат)
-            const dx = (data.targetProjX - data.hudX);
-            const dy = (data.targetProjY - data.hudY);
+            // Нормализуем вектор направления и задаем фиксированную длину палочки (140 пикселей)
+            const angle = Math.atan2(diffY, diffX);
+            // Если цель слева, направляем палку налево-вниз/вверх; если справа — направо
+            const baseAngle = targetIsLeft ? Math.PI : 0;
+            
+            // Плавное слежение за вертикальным положением цели с ограничением угла, чтобы палка всегда смотрела адекватно
+            const clampedDy = Math.max(-1.5, Math.min(1.5, diffY * 3.0));
+            const pointerLength = 140;
 
-            // Масштабируем смещение под пиксели холста (инвертируем Y для Canvas)
-            const scaleFactor = 650;
-            const targetCanvasX = cardCenterX + (dx * scaleFactor);
-            const targetCanvasY = cardCenterY - (dy * scaleFactor);
-
-            // Строим вектор направления от края карточки к цели
-            const vX = targetCanvasX - startX;
-            const vY = targetCanvasY - startY;
-            const length = Math.sqrt(vX * vX + vY * vY) || 1;
-
-            // Фиксированная длина палочки-указателя
-            const pointerLen = 120;
-            const endX = startX + (vX / length) * pointerLen;
-            const endY = startY + (vY / length) * pointerLen;
+            const endX = startX + (targetIsLeft ? -pointerLength : pointerLength);
+            const endY = startY + (clampedDy * 70); // Свободное движение вверх и вниз по горизонту
 
             ctx.beginPath();
             ctx.moveTo(startX, startY);
