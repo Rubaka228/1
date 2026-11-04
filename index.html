@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - True Angle Aiming Trace</title>
+    <title>Iron Man WebXR HUD - Exterior Border Trace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // TRUE ANGLE AIMING TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. TRUE TARGET VECTOR ACTIVE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // EXTERIOR BORDER TRACE</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. CLEAN EDGE-TO-TARGET VECTOR ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -147,36 +147,34 @@
             const w = 512;
             const h = 300;
 
-            // --- ТОЧНЫЙ ВЕКТОР НАПРАВЛЕНИЯ НА ЦЕЛЬ ---
+            // --- СТРОГАЯ ПРИВЯЗКА К ВНЕШНИМ ГРАНЯМ И ЦЕЛЕВОМУ УГЛУ ---
             ctx.save();
             ctx.strokeStyle = '#00f0ff';
             ctx.lineWidth = 5;
             ctx.shadowColor = '#00f0ff';
             ctx.shadowBlur = 15;
 
-            // Центр инфо-панели на холсте
-            const cardCenterX = cx + w / 2;
-            const cardCenterY = cy + h / 2;
-
-            // Вычисляем точную разницу координат между карточкой и целью в пространстве экрана визора
+            // Разница между позицией карточки и целью на экране
             const deltaX = data.targetProjX - data.hudX;
             const deltaY = data.targetProjY - data.hudY;
 
-            // Определяем сторону карточки для старта линии (ближайшая к цели граница)
+            // Определяем, с какой стороны находится цель относительно центра карточки
             const targetIsLeft = deltaX < 0;
+
+            // Начало палочки жестко на внешней левой или правой границе рамки панели
             const startX = targetIsLeft ? cx : cx + w;
-            const startY = cardCenterY;
+            const startY = cy + h / 2; // По центру высоты панели
 
-            // Вычисляем истинный угол в радианах между карточкой и целью
-            // Масштабируем пиксельные пропорции холста
+            // Масштабируем экранные координаты в пиксели холста для поиска угла наклона к цели
             const screenScale = 700;
-            const targetCanvasX = cardCenterX + (deltaX * screenScale);
-            const targetCanvasY = cardCenterY - (deltaY * screenScale); // инверсия Y для Canvas
+            const targetCanvasX = (cx + w / 2) + (deltaX * screenScale);
+            const targetCanvasY = (cy + h / 2) - (deltaY * screenScale); // инверсия Y для Canvas
 
+            // Истинный угол направления из точки на границе карточки в сторону цели
             const angle = Math.atan2(targetCanvasY - startY, targetCanvasX - startX);
 
-            // Фиксированная длина палочки (130 пикселей), которая торчит строго по направлению к цели
-            const pointerLength = 130;
+            // Фиксированная длина палочки (120 пикселей наружу от рамки)
+            const pointerLength = 120;
             const endX = startX + Math.cos(angle) * pointerLength;
             const endY = startY + Math.sin(angle) * pointerLength;
 
