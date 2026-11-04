@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Head-Locked HUD with Screen-Space Target Tracking</title>
+    <title>Iron Man WebXR HUD - Head-Locked HUD</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -20,10 +20,10 @@
     <div id="webgl-container" class="absolute inset-0 w-full h-full z-0 cursor-grab active:cursor-grabbing"></div>
     <div id="vr-lens-overlay" class="pointer-events-none absolute inset-0 z-5 opacity-0 transition-opacity duration-500 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(2,6,23,0.75)_80%,rgba(2,6,23,0.98)_100%)] border-[10px] border-slate-900/60 rounded-3xl"></div>
     
-    <!-- 2D Canvas Overlay для нарисованного прямо перед глазами ХУДа и трейсов -->
-    <canvas id="hud-2d-overlay" class="pointer-events-none absolute inset-0 z-20 w-full h-full"></canvas>
+    <!-- 2D Canvas Overlay на самом верху для ХУДа и ломаных линий -->
+    <canvas id="hud-2d-overlay" class="pointer-events-none absolute inset-0 z-30 w-full h-full"></canvas>
 
-    <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-6">
+    <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
                 <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // HEAD-LOCKED HUD</h1>
@@ -72,9 +72,8 @@
         let onPointerDownPointerX = 0, onPointerDownPointerY = 0, onPointerDownLon = 0, onPointerDownLat = 0;
         let isVrSimulated = false;
 
-        // Плавные координаты для хед-локед карточки ХУДа на экране, чтобы она не дергалась
-        let currentCardScreenX = window.innerWidth - 350;
-        let currentCardScreenY = 120;
+        let currentCardScreenX = 100, currentCardScreenY = 100;
+        let isInitialized = false;
 
         function init() {
             const container = document.getElementById('webgl-container');
@@ -86,7 +85,6 @@
             scene.add(camera);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-            renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.xr.enabled = true;
             renderer.setClearColor(0x020617, 1);
@@ -126,9 +124,9 @@
 
         function createFloatingTargets() {
             const targetPositions = [
-                { x: -15, y: 3, z: -20, label: 'DRONE ALPHA', comp: 'TITANIUM ALLOY' },
-                { x: 18, y: 5, z: -25, label: 'SATELLITE B-9', comp: 'CARBON COMPOSITE' },
-                { x: -2, y: 6, z: -15, label: 'UNIDENTIFIED', comp: 'UNKNOWN METEORIC' }
+                { x: -10, y: 3, z: -15, label: 'DRONE ALPHA', comp: 'TITANIUM ALLOY' },
+                { x: 12, y: 5, z: -18, label: 'SATELLITE B-9', comp: 'CARBON COMPOSITE' },
+                { x: 0, y: 6, z: -12, label: 'UNIDENTIFIED', comp: 'UNKNOWN METEORIC' }
             ];
 
             targetPositions.forEach((pos, idx) => {
@@ -200,62 +198,61 @@
             document.addEventListener('pointerup', () => { isMouseDown = false; });
         }
 
-        // Отрисовка красивой HUD-карточки прямо на 2D Canvas поверх экрана (в стиле фильма)
         function drawScreenHoloCard(ctx, x, y, w, h, data) {
             ctx.save();
-            ctx.fillStyle = 'rgba(2, 6, 23, 0.88)';
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.92)';
             ctx.fillRect(x, y, w, h);
 
             ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 3;
             ctx.shadowColor = '#ef4444';
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 12;
             ctx.strokeRect(x, y, w, h);
 
-            // Уголки
+            // Уголки рамки
             ctx.fillStyle = '#ff6600';
-            ctx.fillRect(x, y, 25, 6); ctx.fillRect(x, y, 6, 25);
-            ctx.fillRect(x + w - 25, y, 25, 6); ctx.fillRect(x + w - 6, y, 6, 25);
-            ctx.fillRect(x, y + h - 6, 25, 6); ctx.fillRect(x, y + h - 25, 6, 25);
-            ctx.fillRect(x + w - 25, y + h - 6, 25, 6); ctx.fillRect(x + w - 6, y + h - 25, 6, 25);
+            ctx.fillRect(x, y, 20, 5); ctx.fillRect(x, y, 5, 20);
+            ctx.fillRect(x + w - 20, y, 20, 5); ctx.fillRect(x + w - 5, y, 5, 20);
+            ctx.fillRect(x, y + h - 5, 20, 5); ctx.fillRect(x, y + h - 20, 5, 20);
+            ctx.fillRect(x + w - 20, y + h - 5, 20, 5); ctx.fillRect(x + w - 5, y + h - 20, 5, 20);
 
             ctx.textAlign = 'left';
-            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.font = 'bold 18px Orbitron, sans-serif';
             ctx.fillStyle = '#ef4444';
-            ctx.fillText(data.label || 'TARGET LOCKED', x + 20, y + 35);
+            ctx.fillText(data.label || 'TARGET LOCKED', x + 18, y + 30);
 
-            ctx.font = 'bold 13px Orbitron, monospace';
+            ctx.font = 'bold 11px Orbitron, monospace';
             ctx.fillStyle = '#ff6600';
-            ctx.fillText('/// THREAT TELEMETRY ///', x + 20, y + 60);
+            ctx.fillText('/// TELEMETRY ACTIVE ///', x + 18, y + 50);
 
             ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(x + 20, y + 72); ctx.lineTo(x + w - 20, y + 72); ctx.stroke();
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(x + 18, y + 60); ctx.lineTo(x + w - 18, y + 60); ctx.stroke();
 
-            ctx.font = '16px Rajdhani, monospace';
+            ctx.font = '14px Rajdhani, monospace';
             ctx.fillStyle = '#94a3b8';
-            ctx.fillText('DISTANCE:', x + 20, y + 110);
+            ctx.fillText('DISTANCE:', x + 18, y + 92);
             ctx.fillStyle = '#00f0ff';
-            ctx.font = 'bold 20px Orbitron, sans-serif';
-            ctx.fillText(`${data.dist || '0.0'} M`, x + 130, y + 110);
-
-            ctx.font = '16px Rajdhani, monospace';
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText('MATERIAL:', x + 20, y + 145);
-            ctx.fillStyle = '#e2e8f0';
             ctx.font = 'bold 16px Orbitron, sans-serif';
-            ctx.fillText(data.comp || 'VIBRANIUM', x + 130, y + 145);
+            ctx.fillText(`${data.dist || '0.0'} M`, x + 110, y + 92);
+
+            ctx.font = '14px Rajdhani, monospace';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('MATERIAL:', x + 18, y + 122);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = 'bold 13px Orbitron, sans-serif';
+            ctx.fillText(data.comp || 'ALLOY', x + 110, y + 122);
 
             const progress = ((data.time || 0) * 40) % 100;
             ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
-            ctx.fillRect(x + 20, y + 175, w - 40, 18);
+            ctx.fillRect(x + 18, y + 145, w - 36, 14);
             ctx.fillStyle = '#ef4444';
-            ctx.fillRect(x + 20, y + 175, (w - 40) * (progress / 100), 18);
+            ctx.fillRect(x + 18, y + 145, (w - 36) * (progress / 100), 14);
 
-            ctx.font = 'bold 12px Orbitron, sans-serif';
+            ctx.font = 'bold 11px Orbitron, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
-            ctx.fillText(`ANALYZING... ${Math.floor(progress)}%`, x + w / 2, y + 189);
+            ctx.fillText(`ANALYZING... ${Math.floor(progress)}%`, x + w / 2, y + 156);
             ctx.restore();
         }
 
@@ -269,8 +266,9 @@
                 if (angle < 0.65 && angle < minAngle) { minAngle = angle; closestTarget = target; }
             });
 
-            const overlayCtx = document.getElementById('hud-2d-overlay').getContext('2d');
-            overlayCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            const overlay = document.getElementById('hud-2d-overlay');
+            const overlayCtx = overlay.getContext('2d');
+            overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
 
             if (closestTarget) {
                 if (lockedTarget !== closestTarget) {
@@ -290,55 +288,62 @@
 
                 const dist = camera.position.distanceTo(lockedTarget.position).toFixed(1);
 
-                // Считаем экранные координаты центра цели
-                const p1 = lockedTarget.position.clone().project(camera);
-                if (p1.z <= 1.0) {
-                    const targetScreenX = (p1.x * 0.5 + 0.5) * window.innerWidth;
-                    const targetScreenY = (-(p1.y * 0.5) + 0.5) * window.innerHeight;
+                // Проецируем 3D-позицию цели в 2D-координаты экрана
+                const vector = lockedTarget.position.clone();
+                vector.project(camera);
 
-                    // Целевая позиция карточки: висит в поле зрения (например, справа-сверху от цели, но не на ней)
-                    const cardW = 320, cardH = 210;
-                    let desiredCardX = targetScreenX + 80;
-                    let desiredCardY = targetScreenY - 120;
+                if (vector.z < 1.0) {
+                    const targetScreenX = (vector.x * 0.5 + 0.5) * overlay.width;
+                    const targetScreenY = (-(vector.y * 0.5) + 0.5) * overlay.height;
 
-                    // Ограничиваем, чтобы карточка не улетала за границы экрана
-                    desiredCardX = Math.max(20, Math.min(window.innerWidth - cardW - 20, desiredCardX));
-                    desiredCardY = Math.max(20, Math.min(window.innerHeight - cardH - 20, desiredCardY));
+                    const cardW = 280, cardH = 175;
+                    let desiredCardX = targetScreenX + 60;
+                    let desiredCardY = targetScreenY - 100;
 
-                    // Плавное следование (интерполяция) карточки ХУДа на экране
-                    currentCardScreenX += (desiredCardX - currentCardScreenX) * 0.2;
-                    currentCardScreenY += (desiredCardY - currentCardScreenY) * 0.2;
+                    desiredCardX = Math.max(20, Math.min(overlay.width - cardW - 20, desiredCardX));
+                    desiredCardY = Math.max(20, Math.min(overlay.height - cardH - 20, desiredCardY));
 
-                    // Рисуем ХУД-карточку прямо перед глазами (Screen-Space)
+                    if (!isInitialized) {
+                        currentCardScreenX = desiredCardX;
+                        currentCardScreenY = desiredCardY;
+                        isInitialized = true;
+                    }
+
+                    // Плавное следование карточки перед глазами
+                    currentCardScreenX += (desiredCardX - currentCardScreenX) * 0.25;
+                    currentCardScreenY += (desiredCardY - currentCardScreenY) * 0.25;
+
+                    // Отрисовка ХУД-карточки
                     drawScreenHoloCard(overlayCtx, currentCardScreenX, currentCardScreenY, cardW, cardH, {
                         time, label: lockedTarget.userData.label, dist, comp: lockedTarget.userData.comp
                     });
 
-                    // Рисуем ломаный трейсер (elbow stem) от цели прямо к углу нашей экранной карточки
+                    // Отрисовка ломаного трейсера (elbow line) от цели к углу карточки
                     overlayCtx.save();
                     overlayCtx.strokeStyle = '#00f0ff';
-                    overlayCtx.lineWidth = 2.5;
+                    overlayCtx.lineWidth = 2;
                     overlayCtx.shadowColor = '#00f0ff';
-                    overlayCtx.shadowBlur = 10;
+                    overlayCtx.shadowBlur = 8;
 
                     const cornerX = currentCardScreenX;
                     const cornerY = currentCardScreenY + cardH;
 
                     overlayCtx.beginPath();
                     overlayCtx.moveTo(targetScreenX, targetScreenY);
-                    overlayCtx.lineTo(cornerX, targetScreenY); // Горизонтальный излом
-                    overlayCtx.lineTo(cornerX, cornerY);     // Вертикальный к углу карточки
+                    overlayCtx.lineTo(cornerX, targetScreenY);
+                    overlayCtx.lineTo(cornerX, cornerY);
                     overlayCtx.stroke();
 
-                    // Точка на самой цели
+                    // Точка привязки на самой цели
                     overlayCtx.fillStyle = '#ef4444';
-                    overlayCtx.beginPath(); overlayCtx.arc(targetScreenX, targetScreenY, 5, 0, Math.PI * 2); overlayCtx.fill();
+                    overlayCtx.beginPath(); overlayCtx.arc(targetScreenX, targetScreenY, 4, 0, Math.PI * 2); overlayCtx.fill();
                     overlayCtx.restore();
                 }
             } else {
                 if (lockedTarget) {
                     lockedTarget.userData.mesh.material.emissive.setHex(0xef4444);
                     lockedTarget = null;
+                    isInitialized = false;
                 }
                 targetLockReticleGroup.visible = false;
             }
@@ -349,7 +354,8 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
             const overlay = document.getElementById('hud-2d-overlay');
-            overlay.width = window.innerWidth; overlay.height = window.innerHeight;
+            overlay.width = window.innerWidth;
+            overlay.height = window.innerHeight;
         }
 
         function animate(timestamp) {
