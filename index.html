@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Exterior Border Trace</title>
+    <title>Iron Man WebXR HUD - Perfect Box Border Trace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // EXTERIOR BORDER TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. CLEAN EDGE-TO-TARGET VECTOR ACTIVE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // PERFECT BORDER TRACE</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. REWRITTEN VECTOR ENGINE ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -147,7 +147,10 @@
             const w = 512;
             const h = 300;
 
-            // --- СТРОГАЯ ПРИВЯЗКА К ВНЕШНИМ ГРАНЯМ И ЦЕЛЕВОМУ УГЛУ ---
+            const cardCenterX = cx + w / 2;
+            const cardCenterY = cy + h / 2;
+
+            // --- НОВАЯ ЧИСТАЯ ЛОГИКА ТРЕЙСА (RAY-BOX BORDER INTERSECTION) ---
             ctx.save();
             ctx.strokeStyle = '#00f0ff';
             ctx.lineWidth = 5;
@@ -155,28 +158,33 @@
             ctx.shadowBlur = 15;
 
             // Разница между позицией карточки и целью на экране
-            const deltaX = data.targetProjX - data.hudX;
-            const deltaY = data.targetProjY - data.hudY;
+            const scaleFactor = 700;
+            const targetCanvasX = cardCenterX + (data.targetProjX - data.hudX) * scaleFactor;
+            const targetCanvasY = cardCenterY - (data.targetProjY - data.hudY) * scaleFactor; // Инверсия Y для Canvas
 
-            // Определяем, с какой стороны находится цель относительно центра карточки
-            const targetIsLeft = deltaX < 0;
+            // Направление от центра карточки к цели
+            const dx = targetCanvasX - cardCenterX;
+            const dy = targetCanvasY - cardCenterY;
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            const unitX = dx / len;
+            const unitY = dy / len;
 
-            // Начало палочки жестко на внешней левой или правой границе рамки панели
-            const startX = targetIsLeft ? cx : cx + w;
-            const startY = cy + h / 2; // По центру высоты панели
+            // Находим точку пересечения луча с границами прямоугольника карточки (width: w, height: h)
+            const halfW = w / 2;
+            const halfH = h / 2;
+            
+            const scaleX = unitX !== 0 ? halfW / Math.abs(unitX) : Infinity;
+            const scaleY = unitY !== 0 ? halfH / Math.abs(unitY) : Infinity;
+            const t = Math.min(scaleX, scaleY);
 
-            // Масштабируем экранные координаты в пиксели холста для поиска угла наклона к цели
-            const screenScale = 700;
-            const targetCanvasX = (cx + w / 2) + (deltaX * screenScale);
-            const targetCanvasY = (cy + h / 2) - (deltaY * screenScale); // инверсия Y для Canvas
+            // Точка старта палочки ровно на рамке инфо-блока
+            const startX = cardCenterX + unitX * t;
+            const startY = cardCenterY + unitY * t;
 
-            // Истинный угол направления из точки на границе карточки в сторону цели
-            const angle = Math.atan2(targetCanvasY - startY, targetCanvasX - startX);
-
-            // Фиксированная длина палочки (120 пикселей наружу от рамки)
-            const pointerLength = 120;
-            const endX = startX + Math.cos(angle) * pointerLength;
-            const endY = startY + Math.sin(angle) * pointerLength;
+            // Конец палочки торчит наружу в сторону цели на 110 пикселей
+            const pointerLength = 110;
+            const endX = startX + unitX * pointerLength;
+            const endY = startY + unitY * pointerLength;
 
             ctx.beginPath();
             ctx.moveTo(startX, startY);
