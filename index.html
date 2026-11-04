@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Immersive 3D HUD & Trace</title>
+    <title>Iron Man WebXR HUD - Stable 2D Screen Trace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -20,11 +20,14 @@
     <div id="webgl-container" class="absolute inset-0 w-full h-full z-0 cursor-grab active:cursor-grabbing"></div>
     <div id="vr-lens-overlay" class="pointer-events-none absolute inset-0 z-5 opacity-0 transition-opacity duration-500 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(2,6,23,0.75)_80%,rgba(2,6,23,0.98)_100%)] border-[10px] border-slate-900/60 rounded-3xl"></div>
 
+    <!-- 2D Canvas Overlay поверх всего экрана для идеального трейса и интерфейса визора -->
+    <canvas id="hud-2d-overlay" class="pointer-events-none absolute inset-0 z-30 w-full h-full"></canvas>
+
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // IMMERSIVE VR HUD</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. 3D VECTOR MAPPING ACTIVE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // STABLE SCREEN TRACE HUD</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. 2D ELBOW TRACE ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -65,14 +68,14 @@
         let scene, camera, renderer;
         let targets = [], lockedTarget = null;
         let targetLockReticleGroup, outerLockRing, innerLockRing;
-        let hudCardMesh, hudCardCanvas, hudCardCtx;
-        let traceLineMesh;
         let isMouseDown = false, lon = 0, lat = 0;
         let onPointerDownPointerX = 0, onPointerDownPointerY = 0, onPointerDownLon = 0, onPointerDownLat = 0;
         let isVrSimulated = false;
 
-        let currentHudLocalX = 0.25;
-        let currentHudLocalY = 0.15;
+        // Плавные экранные координаты хед-локед карточки
+        let currentCardScreenX = 100;
+        let currentCardScreenY = 100;
+        let isInitialized = false;
 
         function init() {
             const container = document.getElementById('webgl-container');
@@ -98,11 +101,11 @@
 
             createFloatingTargets();
             createDynamicTargetLockReticle();
-            create3DHeadLockedHUDCard();
             setupWebXR();
             setupDesktopControls();
 
             window.addEventListener('resize', onWindowResize);
+            onWindowResize();
             renderer.setAnimationLoop(animate);
 
             document.getElementById('audio-toggle').addEventListener('click', (e) => {
@@ -119,92 +122,6 @@
             targetLockReticleGroup.add(innerLockRing);
             targetLockReticleGroup.visible = false;
             scene.add(targetLockReticleGroup);
-        }
-
-        function create3DHeadLockedHUDCard() {
-            hudCardCanvas = document.createElement('canvas');
-            hudCardCanvas.width = 512;
-            hudCardCanvas.height = 320;
-            hudCardCtx = hudCardCanvas.getContext('2d');
-
-            const texture = new THREE.CanvasTexture(hudCardCanvas);
-            const geometry = new THREE.PlaneGeometry(0.38, 0.24); 
-            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthTest: false });
-
-            hudCardMesh = new THREE.Mesh(geometry, material);
-            hudCardMesh.visible = false;
-            hudCardMesh.renderOrder = 999;
-            
-            // Привязываем HUD напрямую к камере (экран визора в 3D)
-            camera.add(hudCardMesh);
-            hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, -0.8);
-
-            // 3D-трейс линия с 3 точками (Цель -> Излом -> Угол HUD)
-            const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.9, depthTest: false });
-            const lineGeo = new THREE.BufferGeometry();
-            lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3 * 3), 3));
-            traceLineMesh = new THREE.Line(lineGeo, lineMat);
-            traceLineMesh.visible = false;
-            traceLineMesh.renderOrder = 998;
-            scene.add(traceLineMesh);
-        }
-
-        function updateHUDCanvasTexture(data) {
-            const ctx = hudCardCtx;
-            ctx.clearRect(0, 0, 512, 320);
-
-            ctx.fillStyle = 'rgba(2, 6, 23, 0.92)';
-            ctx.fillRect(0, 0, 512, 320);
-
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 6;
-            ctx.strokeRect(0, 0, 512, 320);
-
-            ctx.fillStyle = '#ff6600';
-            ctx.fillRect(0, 0, 35, 12); ctx.fillRect(0, 0, 12, 35);
-            ctx.fillRect(512 - 35, 0, 35, 12); ctx.fillRect(512 - 12, 0, 12, 35);
-            ctx.fillRect(0, 320 - 12, 35, 12); ctx.fillRect(0, 320 - 35, 12, 35);
-            ctx.fillRect(512 - 35, 320 - 12, 35, 12); ctx.fillRect(512 - 12, 320 - 35, 12, 35);
-
-            ctx.textAlign = 'left';
-            ctx.font = 'bold 32px Orbitron, sans-serif';
-            ctx.fillStyle = '#ef4444';
-            ctx.fillText(data.label || 'TARGET LOCKED', 30, 55);
-
-            ctx.font = 'bold 18px Orbitron, monospace';
-            ctx.fillStyle = '#ff6600';
-            ctx.fillText('/// TELEMETRY ACTIVE ///', 30, 90);
-
-            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
-            ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(30, 105); ctx.lineTo(482, 105); ctx.stroke();
-
-            ctx.font = '24px Rajdhani, monospace';
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText('DISTANCE:', 30, 160);
-            ctx.fillStyle = '#00f0ff';
-            ctx.font = 'bold 28px Orbitron, sans-serif';
-            ctx.fillText(`${data.dist} M`, 180, 160);
-
-            ctx.font = '24px Rajdhani, monospace';
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText('MATERIAL:', 30, 215);
-            ctx.fillStyle = '#e2e8f0';
-            ctx.font = 'bold 24px Orbitron, sans-serif';
-            ctx.fillText(data.comp, 180, 215);
-
-            const progress = (data.time * 40) % 100;
-            ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
-            ctx.fillRect(30, 250, 452, 28);
-            ctx.fillStyle = '#ef4444';
-            ctx.fillRect(30, 250, 452 * (progress / 100), 28);
-
-            ctx.font = 'bold 18px Orbitron, sans-serif';
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.fillText(`ANALYZING... ${Math.floor(progress)}%`, 256, 270);
-
-            hudCardMesh.material.map.needsUpdate = true;
         }
 
         function createFloatingTargets() {
@@ -283,6 +200,65 @@
             document.addEventListener('pointerup', () => { isMouseDown = false; });
         }
 
+        // Отрисовка красивой кибернетической инфо-карточки на 2D Canvas
+        function drawScreenHoloCard(ctx, x, y, w, h, data) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.92)';
+            ctx.fillRect(x, y, w, h);
+
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = '#ef4444';
+            ctx.shadowBlur = 12;
+            ctx.strokeRect(x, y, w, h);
+
+            // Уголки
+            ctx.fillStyle = '#ff6600';
+            ctx.fillRect(x, y, 20, 5); ctx.fillRect(x, y, 5, 20);
+            ctx.fillRect(x + w - 20, y, 20, 5); ctx.fillRect(x + w - 5, y, 5, 20);
+            ctx.fillRect(x, y + h - 5, 20, 5); ctx.fillRect(x, y + h - 20, 5, 20);
+            ctx.fillRect(x + w - 20, y + h - 5, 20, 5); ctx.fillRect(x + w - 5, y + h - 20, 5, 20);
+
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.fillStyle = '#ef4444';
+            ctx.fillText(data.label || 'TARGET LOCKED', x + 20, y + 35);
+
+            ctx.font = 'bold 12px Orbitron, monospace';
+            ctx.fillStyle = '#ff6600';
+            ctx.fillText('/// TELEMETRY ACTIVE ///', x + 20, y + 60);
+
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(x + 20, y + 70); ctx.lineTo(x + w - 20, y + 70); ctx.stroke();
+
+            ctx.font = '15px Rajdhani, monospace';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('DISTANCE:', x + 20, y + 105);
+            ctx.fillStyle = '#00f0ff';
+            ctx.font = 'bold 18px Orbitron, sans-serif';
+            ctx.fillText(`${data.dist} M`, x + 120, y + 105);
+
+            ctx.font = '15px Rajdhani, monospace';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('MATERIAL:', x + 20, y + 140);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = 'bold 15px Orbitron, sans-serif';
+            ctx.fillText(data.comp, x + 120, y + 140);
+
+            const progress = (data.time * 40) % 100;
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+            ctx.fillRect(x + 20, y + 165, w - 40, 18);
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(x + 20, y + 165, (w - 40) * (progress / 100), 18);
+
+            ctx.font = 'bold 12px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText(`ANALYZING... ${Math.floor(progress)}%`, x + w / 2, y + 178);
+            ctx.restore();
+        }
+
         function checkGazeTargetLock(time) {
             const cameraDirection = new THREE.Vector3();
             camera.getWorldDirection(cameraDirection);
@@ -292,6 +268,10 @@
                 const angle = cameraDirection.angleTo(target.position.clone().sub(camera.position).normalize());
                 if (angle < 0.65 && angle < minAngle) { minAngle = angle; closestTarget = target; }
             });
+
+            const overlay = document.getElementById('hud-2d-overlay');
+            const overlayCtx = overlay.getContext('2d');
+            overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
 
             if (closestTarget) {
                 if (lockedTarget !== closestTarget) {
@@ -311,61 +291,71 @@
 
                 const dist = camera.position.distanceTo(lockedTarget.position).toFixed(1);
 
-                hudCardMesh.visible = true;
-                updateHUDCanvasTexture({ time, label: lockedTarget.userData.label, dist, comp: lockedTarget.userData.comp });
+                // Проецируем 3D-дрон на 2D-экран визора
+                const vector = lockedTarget.position.clone();
+                vector.project(camera);
 
-                // --- 1. ПРОЕКЦИЯ ЦЕЛИ НА ЭКРАН ВИЗОРА ---
-                const localTargetPos = lockedTarget.position.clone();
-                camera.worldToLocal(localTargetPos);
+                if (vector.z < 1.0) {
+                    const targetScreenX = (vector.x * 0.5 + 0.5) * overlay.width;
+                    const targetScreenY = (-(vector.y * 0.5) + 0.5) * overlay.height;
 
-                const hudZ = -0.8;
-                const scale = hudZ / localTargetPos.z;
-                const targetProjX = localTargetPos.x * scale;
-                const targetProjY = localTargetPos.y * scale;
+                    const cardW = 300, cardH = 200;
 
-                // --- 2. СМЕЩЕНИЕ ОКНА НА ОСНОВЕ ВЗГЛЯДА ---
-                const offsetX = (targetProjX >= 0) ? -0.32 : 0.32;
-                const offsetY = 0.18;
+                    // Окно плавно отпрыгивает в сторону от цели на основе взгляда
+                    const offsetX = (targetScreenX < overlay.width / 2) ? 140 : -340;
+                    const offsetY = -110;
 
-                const targetHudX = THREE.MathUtils.clamp(targetProjX + offsetX, -0.45, 0.45);
-                const targetHudY = THREE.MathUtils.clamp(targetProjY + offsetY, -0.3, 0.3);
+                    const desiredCardX = THREE.MathUtils.clamp(targetScreenX + offsetX, 20, overlay.width - cardW - 20);
+                    const desiredCardY = THREE.MathUtils.clamp(targetScreenY + offsetY, 20, overlay.height - cardH - 20);
 
-                currentHudLocalX += (targetHudX - currentHudLocalX) * 0.2;
-                currentHudLocalY += (targetHudY - currentHudLocalY) * 0.2;
+                    if (!isInitialized) {
+                        currentCardScreenX = desiredCardX;
+                        currentCardScreenY = desiredCardY;
+                        isInitialized = true;
+                    }
 
-                hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, hudZ);
+                    // Плавная инерция следования карточки
+                    currentCardScreenX += (desiredCardX - currentCardScreenX) * 0.2;
+                    currentCardScreenY += (desiredCardY - currentCardScreenY) * 0.2;
 
-                // --- 3. ИСПРАВЛЕННЫЙ 3D ТРЕЙС В МИРЕ ---
-                // Точка A: Центр дрона в мировых координатах
-                const pA = lockedTarget.position.clone();
+                    // 1. Рисуем инфо-карточку
+                    drawScreenHoloCard(overlayCtx, currentCardScreenX, currentCardScreenY, cardW, cardH, {
+                        time, label: lockedTarget.userData.label, dist, comp: lockedTarget.userData.comp
+                    });
 
-                // Точка C: Ближайший угол карточки перед глазами в мировых координатах
-                const cornerOffset = new THREE.Vector3(
-                    (currentHudLocalX < targetProjX) ? 0.19 : -0.19,
-                    (currentHudLocalY < targetProjY) ? 0.12 : -0.12,
-                    0
-                );
-                const localCorner = new THREE.Vector3(currentHudLocalX, currentHudLocalY, hudZ).add(cornerOffset);
-                const pC = camera.localToWorld(localCorner.clone());
+                    // 2. РИСУЕМ КРАСИВЫЙ 2D ЛОМАНЫЙ ТРЕЙС (ELBOW TRACE) НА ЭКРАНЕ ВИЗОРА
+                    overlayCtx.save();
+                    overlayCtx.strokeStyle = '#00f0ff';
+                    overlayCtx.lineWidth = 2.5;
+                    overlayCtx.shadowColor = '#00f0ff';
+                    overlayCtx.shadowBlur = 10;
 
-                // Точка B: Сгиб линии в мировых координатах
-                const pB = pA.clone().lerp(pC, 0.6);
+                    // Ближайший угол карточки к цели
+                    const cornerX = (targetScreenX < currentCardScreenX) ? currentCardScreenX : currentCardScreenX + cardW;
+                    const cornerY = currentCardScreenY + cardH / 2;
 
-                const positions = traceLineMesh.geometry.attributes.position.array;
-                positions[0] = pA.x; positions[1] = pA.y; positions[2] = pA.z;
-                positions[3] = pB.x; positions[4] = pB.y; positions[5] = pB.z;
-                positions[6] = pC.x; positions[7] = pC.y; positions[8] = pC.z;
-                traceLineMesh.geometry.attributes.position.needsUpdate = true;
-                traceLineMesh.visible = true;
+                    // Точка излома линии (сначала горизонтальный отрезок от цели, потом вертикальный излом)
+                    const midX = (targetScreenX + cornerX) / 2;
 
+                    overlayCtx.beginPath();
+                    overlayCtx.moveTo(targetScreenX, targetScreenY); // Центр дрона на экране
+                    overlayCtx.lineTo(midX, targetScreenY);         // Горизонтальный излом
+                    overlayCtx.lineTo(midX, cornerY);               // Вертикальный отрезок
+                    overlayCtx.lineTo(cornerX, cornerY);            // Стыковка с углом карточки
+                    overlayCtx.stroke();
+
+                    // Точка привязки на самом дроне
+                    overlayCtx.fillStyle = '#ef4444';
+                    overlayCtx.beginPath(); overlayCtx.arc(targetScreenX, targetScreenY, 5, 0, Math.PI * 2); overlayCtx.fill();
+                    overlayCtx.restore();
+                }
             } else {
                 if (lockedTarget) {
                     lockedTarget.userData.mesh.material.emissive.setHex(0xef4444);
                     lockedTarget = null;
+                    isInitialized = false;
                 }
                 targetLockReticleGroup.visible = false;
-                hudCardMesh.visible = false;
-                traceLineMesh.visible = false;
             }
         }
 
@@ -373,6 +363,9 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            const overlay = document.getElementById('hud-2d-overlay');
+            overlay.width = window.innerWidth;
+            overlay.height = window.innerHeight;
         }
 
         function animate(timestamp) {
