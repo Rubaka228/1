@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Corrected UI Vector Trace</title>
+    <title>Iron Man WebXR HUD - Full 360 Unlocked Trace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // FIXED UI VECTOR TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. SYNC VECTOR ACTIVE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // UNLOCKED 360 TRACE</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. PIXEL-SPACE VECTOR LOCKED</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -122,12 +122,12 @@
 
         function createCameraSpaceHUD() {
             hudCardCanvas = document.createElement('canvas');
-            hudCardCanvas.width = 812;
-            hudCardCanvas.height = 400;
+            hudCardCanvas.width = 900;
+            hudCardCanvas.height = 600; // Расширили Canvas во все стороны, чтобы вектор опускался куда угодно
             hudCardCtx = hudCardCanvas.getContext('2d');
 
             const texture = new THREE.CanvasTexture(hudCardCanvas);
-            const geometry = new THREE.PlaneGeometry(0.56, 0.28); 
+            const geometry = new THREE.PlaneGeometry(0.60, 0.40); 
             const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthTest: false });
 
             hudCardMesh = new THREE.Mesh(geometry, material);
@@ -140,40 +140,38 @@
 
         function updateHUDCanvasTexture(data) {
             const ctx = hudCardCtx;
-            ctx.clearRect(0, 0, 812, 400);
+            ctx.clearRect(0, 0, 900, 600);
 
-            const cx = 150;
-            const cy = 50;
+            const cx = 194;
+            const cy = 150;
             const w = 512;
             const h = 300;
 
-            // --- ИСПРАВЛЕННЫЙ ВЕКТОР ТРЕЙСА (БЕЗ ТОЧКИ, С ПРАВИЛЬНЫМ НАПРАВЛЕНИЕМ) ---
+            // --- РАЗБЛОКИРОВАННЫЙ ВЕКТОР 360 ГРАДУСОВ ---
             ctx.save();
             ctx.strokeStyle = '#00f0ff';
             ctx.lineWidth = 4;
             ctx.shadowColor = '#00f0ff';
             ctx.shadowBlur = 12;
 
-            // Вычисляем центр карточки на холсте
-            const cardCenterX = cx + w / 2;
-            const cardCenterY = cy + h / 2;
+            // Ближайший край карточки к цели
+            const startX = (data.targetProjX < data.hudX) ? cx : cx + w;
+            const startY = cy + h / 2;
 
-            // Направление от центра карточки к цели (с учетом правильных пропорций экрана)
-            const targetScreenRelativeX = data.relX * 400; 
-            const targetScreenRelativeY = -data.relY * 400; // Инвертируем Y для совпадения координат холста
+            // Перевод локальных 3D координат проекции цели в пиксели этого холста Canvas
+            // Учитываем инверсию Y (в Canvas Y идет сверху вниз)
+            const pixelScale = 1000; 
+            const targetPixelX = (cx + w / 2) + (data.targetProjX - data.hudX) * pixelScale;
+            const targetPixelY = (cy + h / 2) - (data.targetProjY - data.hudY) * pixelScale; // МИНУС отменяет инверсию оси Y
 
-            const len = Math.sqrt(targetScreenRelativeX * targetScreenRelativeX + targetScreenRelativeY * targetScreenRelativeY) || 1;
-            const unitX = targetScreenRelativeX / len;
-            const unitY = targetScreenRelativeY / len;
+            // Вектор от края карточки прямо в сторону цели
+            const dx = targetPixelX - startX;
+            const dy = targetPixelY - startY;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-            // Точка выхода с нужного края панели (левого или правого) в зависимости от положения цели
-            const startX = (data.relX < 0) ? cx : cx + w;
-            const startY = cardCenterY;
-
-            // Длина палочки-указателя
-            const lineLength = 110;
-            const endX = startX + unitX * lineLength;
-            const endY = startY + unitY * lineLength;
+            const lineLen = 130;
+            const endX = startX + (dx / dist) * lineLen;
+            const endY = startY + (dy / dist) * lineLen;
 
             ctx.beginPath();
             ctx.moveTo(startX, startY);
@@ -361,16 +359,15 @@
                 hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, hudZ);
                 hudCardMesh.visible = true;
 
-                const relX = targetProjX - currentHudLocalX;
-                const relY = targetProjY - currentHudLocalY;
-
                 updateHUDCanvasTexture({
                     time,
                     label: lockedTarget.userData.label,
                     dist,
                     comp: lockedTarget.userData.comp,
-                    relX,
-                    relY
+                    targetProjX,
+                    targetProjY,
+                    hudX: currentHudLocalX,
+                    hudY: currentHudLocalY
                 });
 
             } else {
