@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Ultra Smooth Inertial Vector</title>
+    <title>Iron Man WebXR HUD - Clean Stabilized Aura</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // ULTRA SMOOTH HUD</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. CINEMATIC INERTIAL DAMPING ACTIVE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // CLEAN STABILIZED HUD</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. STABLE LOCKED DISTANCE ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -72,6 +72,7 @@
 
         let currentHudLocalX = 0.28;
         let currentHudLocalY = 0.0;
+        let lastStableAngle = 0.3;
 
         function init() {
             const container = document.getElementById('webgl-container');
@@ -179,9 +180,12 @@
             const startX = cardCenterX + unitX * t;
             const startY = cardCenterY + unitY * t;
 
-            const pointerLength = 120;
-            const endX = startX + unitX * pointerLength;
-            const endY = startY + unitY * pointerLength;
+            // Строгая стыковка линии у внешней границы обруча цели без захода внутрь
+            const targetRingRadius = 48;
+            const maxAllowedLength = distance - targetRingRadius;
+            
+            const endX = startX + unitX * Math.max(10, maxAllowedLength);
+            const endY = startY + unitY * Math.max(10, maxAllowedLength);
 
             ctx.beginPath();
             ctx.moveTo(startX, startY);
@@ -360,18 +364,37 @@
                 const targetProjX = localTargetPos.x * scale;
                 const targetProjY = localTargetPos.y * scale;
 
-                const offsetDistance = 0.32;
-                const angleToTarget = Math.atan2(targetProjY, targetProjX);
-                
-                const targetHudX = targetProjX - Math.cos(angleToTarget) * offsetDistance;
-                const targetHudY = targetProjY - Math.sin(angleToTarget) * offsetDistance;
+                const targetDistFromCenter = Math.sqrt(targetProjX * targetProjX + targetProjY * targetProjY);
+
+                // Стабильный угол центра
+                let angleToTarget;
+                if (targetDistFromCenter < 0.12) {
+                    angleToTarget = lastStableAngle;
+                } else {
+                    angleToTarget = Math.atan2(targetProjY, targetProjX);
+                    lastStableAngle = angleToTarget;
+                }
+
+                // Фиксированное расстояние от объекта, не зависящее от отдаления камеры
+                const fixedOffset = 0.32;
+                const targetHudX = targetProjX - Math.cos(angleToTarget) * fixedOffset;
+                const targetHudY = targetProjY - Math.sin(angleToTarget) * fixedOffset;
 
                 const clampedHudX = THREE.MathUtils.clamp(targetHudX, -0.5, 0.5);
                 const clampedHudY = THREE.MathUtils.clamp(targetHudY, -0.4, 0.4);
 
-                // УЛЬТРАПЛАВНОЕ СГЛАЖИВАНИЕ: коэффициент снижен до 0.03 для максимальной инерции
-                currentHudLocalX += (clampedHudX - currentHudLocalX) * 0.03;
-                currentHudLocalY += (clampedHudY - currentHudLocalY) * 0.03;
+                // Проверка резкого переброса на противоположную сторону (телепортация)
+                const deltaX = clampedHudX - currentHudLocalX;
+                const deltaY = clampedHudY - currentHudLocalY;
+                const jumpDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+                if (jumpDistance > 0.35) {
+                    currentHudLocalX = clampedHudX;
+                    currentHudLocalY = clampedHudY;
+                } else {
+                    currentHudLocalX += deltaX * 0.08;
+                    currentHudLocalY += deltaY * 0.08;
+                }
 
                 hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, hudZ);
                 hudCardMesh.visible = true;
