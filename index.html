@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Absolute Edge Trace</title>
+    <title>Iron Man WebXR HUD - Brand New Vector Core</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // ABSOLUTE EDGE TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. UNLOCKED OMNI-VECTOR ACTIVE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // BRAND NEW VECTOR CORE</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. REBUILT EDGE-TO-TARGET ENGINE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -138,6 +138,7 @@
             hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, -0.8);
         }
 
+        // --- ПОЛНОСТЬЮ ПЕРЕПИСАННАЯ ЛОГИКА ВЕКТОРА (НОВАЯ СИСТЕМА ПАЛКИ) ---
         function updateHUDCanvasTexture(data) {
             const ctx = hudCardCtx;
             ctx.clearRect(0, 0, 912, 700);
@@ -150,39 +151,38 @@
             const cardCenterX = cx + w / 2;
             const cardCenterY = cy + h / 2;
 
-            // --- АБСОЛЮТНО НОВАЯ, ЧИСТАЯ ЛОГИКА ТРЕЙСА ОТ ГРАНЕЙ ---
             ctx.save();
             ctx.strokeStyle = '#00f0ff';
             ctx.lineWidth = 5;
             ctx.shadowColor = '#00f0ff';
             ctx.shadowBlur = 15;
 
-            // Переводим координаты цели в пиксели холста
+            // 1. Проекция цели в пиксельную сетку холста панели
             const scaleFactor = 700;
             const targetCanvasX = cardCenterX + (data.targetProjX - data.hudX) * scaleFactor;
-            const targetCanvasY = cardCenterY - (data.targetProjY - data.hudY) * scaleFactor; // Инверсия Y для Canvas
+            const targetCanvasY = cardCenterY - (data.targetProjY - data.hudY) * scaleFactor;
 
+            // 2. Вектор направления из центра карточки на цель
             const dx = targetCanvasX - cardCenterX;
             const dy = targetCanvasY - cardCenterY;
             const len = Math.sqrt(dx * dx + dy * dy) || 1;
             const unitX = dx / len;
             const unitY = dy / len;
 
-            // Жестко выбираем точку старта на ближайшей грани карточки (верх, низ, лево, право)
-            let startX = cardCenterX;
-            let startY = cardCenterY;
+            // 3. Математическое пересечение луча с прямоугольной рамкой инфо-блока (Ray-Box Intersection)
+            // Это гарантирует, что палка растет строго из внешней границы блока в любом направлении (вверх, вниз, вбок)
+            const halfW = w / 2;
+            const halfH = h / 2;
 
-            if (Math.abs(dx) > Math.abs(dy)) {
-                // Цель слева или справа от центра карточки -> берем левую или правую грань
-                startX = (dx > 0) ? (cx + w) : cx;
-                startY = cardCenterY + unitY * (h / 2);
-            } else {
-                // Цель выше или ниже центра карточки -> берем верхнюю или нижнюю грань
-                startX = cardCenterX + unitX * (w / 2);
-                startY = (dy > 0) ? (cy + h) : cy; // Если dy > 0, цель ниже карточки -> палка стартует из нижнего ребра!
-            }
+            const scaleX = unitX !== 0 ? halfW / Math.abs(unitX) : Infinity;
+            const scaleY = unitY !== 0 ? halfH / Math.abs(unitY) : Infinity;
+            const t = Math.min(scaleX, scaleY);
 
-            // Конец палочки торчит наружу на 120 пикселей строго в направлении центра цели
+            // Точка старта палочки на внешней грани рамки
+            const startX = cardCenterX + unitX * t;
+            const startY = cardCenterY + unitY * t;
+
+            // 4. Конец палочки выступает наружу на фиксированную длину и указывает точно в центр цели
             const pointerLength = 120;
             const endX = startX + unitX * pointerLength;
             const endY = startY + unitY * pointerLength;
@@ -361,11 +361,12 @@
                 const targetProjX = localTargetPos.x * scale;
                 const targetProjY = localTargetPos.y * scale;
 
+                // Возвращаем правильные, красивые отступы инфо-боксов возле дронов
                 const offsetX = (targetProjX >= 0) ? -0.30 : 0.30;
-                
-                const targetHudX = THREE.MathUtils.clamp(targetProjX + offsetX, -0.5, 0.5);
-                // Полная свобода вертикального перемещения карточки (без искусственных ограничений)
-                const targetHudY = THREE.MathUtils.clamp(targetProjY, -0.5, 0.5);
+                const offsetY = -0.05;
+
+                const targetHudX = THREE.MathUtils.clamp(targetProjX + offsetX, -0.45, 0.45);
+                const targetHudY = THREE.MathUtils.clamp(targetProjY + offsetY, -0.35, 0.25);
 
                 currentHudLocalX += (targetHudX - currentHudLocalX) * 0.2;
                 currentHudLocalY += (targetHudY - currentHudLocalY) * 0.2;
