@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Pure HUD Trace Simulation</title>
+    <title>Iron Man WebXR HUD - Robust UI Trace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // HUD-ONLY TRACE SIMULATION</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. VIRTUAL UI VECTOR ACTIVE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // ROBUST UI TRACE</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. HUD VECTOR ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -121,105 +121,110 @@
         }
 
         function createCameraSpaceHUD() {
+            // Увеличиваем холст текстуры с запасом в стороны, чтобы линия трейса всегда была видна
             hudCardCanvas = document.createElement('canvas');
-            hudCardCanvas.width = 512;
-            hudCardCanvas.height = 350; // Чуть увеличили по высоте под имитацию трейса
+            hudCardCanvas.width = 768;
+            hudCardCanvas.height = 400;
             hudCardCtx = hudCardCanvas.getContext('2d');
 
             const texture = new THREE.CanvasTexture(hudCardCanvas);
-            const geometry = new THREE.PlaneGeometry(0.40, 0.27); 
+            const geometry = new THREE.PlaneGeometry(0.52, 0.27); // Чуть шире под новый холст
             const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthTest: false });
 
             hudCardMesh = new THREE.Mesh(geometry, material);
             hudCardMesh.visible = false;
             hudCardMesh.renderOrder = 999;
             
-            // Карточка крепится прямо к камере (на визор)
             camera.add(hudCardMesh);
             hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, -0.8);
         }
 
-        // Рендерим инфо-карточку вместе с виртуальным симулированным трейсом прямо на текстуре
         function updateHUDCanvasTexture(data) {
             const ctx = hudCardCtx;
-            ctx.clearRect(0, 0, 512, 350);
+            ctx.clearRect(0, 0, 768, 400);
 
-            // Основная панель
-            ctx.fillStyle = 'rgba(2, 6, 23, 0.92)';
-            ctx.fillRect(0, 0, 512, 300);
+            // Сдвигаем саму карточку вправо на холсте, оставляя левую сторону под линию
+            const cx = 200;
+            const cy = 40;
+            const w = 512;
+            const h = 300;
 
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 6;
-            ctx.strokeRect(0, 0, 512, 300);
-
-            // Уголки
-            ctx.fillStyle = '#ff6600';
-            ctx.fillRect(0, 0, 35, 12); ctx.fillRect(0, 0, 12, 35);
-            ctx.fillRect(512 - 35, 0, 35, 12); ctx.fillRect(512 - 12, 0, 12, 35);
-            ctx.fillRect(0, 300 - 12, 35, 12); ctx.fillRect(0, 300 - 35, 12, 35);
-            ctx.fillRect(512 - 35, 300 - 12, 35, 12); ctx.fillRect(512 - 12, 300 - 35, 12, 35);
-
-            ctx.textAlign = 'left';
-            ctx.font = 'bold 32px Orbitron, sans-serif';
-            ctx.fillStyle = '#ef4444';
-            ctx.fillText(data.label || 'TARGET LOCKED', 30, 55);
-
-            ctx.font = 'bold 18px Orbitron, monospace';
-            ctx.fillStyle = '#ff6600';
-            ctx.fillText('/// TELEMETRY ACTIVE ///', 30, 90);
-
-            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
-            ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(30, 105); ctx.lineTo(482, 105); ctx.stroke();
-
-            ctx.font = '24px Rajdhani, monospace';
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText('DISTANCE:', 30, 160);
-            ctx.fillStyle = '#00f0ff';
-            ctx.font = 'bold 28px Orbitron, sans-serif';
-            ctx.fillText(`${data.dist} M`, 180, 160);
-
-            ctx.font = '24px Rajdhani, monospace';
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText('MATERIAL:', 30, 215);
-            ctx.fillStyle = '#e2e8f0';
-            ctx.font = 'bold 24px Orbitron, sans-serif';
-            ctx.fillText(data.comp, 180, 215);
-
-            const progress = (data.time * 40) % 100;
-            ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
-            ctx.fillRect(30, 240, 452, 28);
-            ctx.fillStyle = '#ef4444';
-            ctx.fillRect(30, 240, 452 * (progress / 100), 28);
-
-            ctx.font = 'bold 18px Orbitron, sans-serif';
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.fillText(`ANALYZING... ${Math.floor(progress)}%`, 256, 260);
-
-            // --- ВИЗУАЛЬНАЯ ИМИТАЦИЯ ТРЕЙСА (ПИКСЕЛЬНАЯ ПАЛКА ВНУТРИ HUD) ---
-            // Рисуем красивый векторный отросток, который уходит от нижнего угла панели к реальному положению цели на экране
+            // --- ИМИТАЦИЯ ТРЕЙСА (ВИДИМАЯ ПАЛКА ВНУТРИ ХОЛСТА КАРТОЧКИ) ---
+            ctx.save();
             ctx.strokeStyle = '#00f0ff';
             ctx.lineWidth = 4;
             ctx.shadowColor = '#00f0ff';
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 12;
 
-            const startX = (data.isLeft) ? 0 : 512; // Нижний угол карточки
-            const startY = 300;
-            
-            // Направление имитации основывается на реальном смещении координат дрона в пространстве визора
-            const endX = startX + (data.relX * -250); 
-            const endY = 350 + (data.relY * 150);
+            // Начало линии от левого края карточки
+            const startX = cx;
+            const startY = cy + h / 2;
+
+            // Конец линии указывает в сторону реального относительного положения цели
+            const endX = startX + (data.relX * -350);
+            const endY = startY + (data.relY * 200);
 
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             ctx.lineTo(endX, endY);
             ctx.stroke();
 
-            // Точка на конце имитируемого луча
             ctx.fillStyle = '#00f0ff';
-            ctx.beginPath(); ctx.arc(endX, endY, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(endX, endY, 7, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+
+            // --- ОСНОВНАЯ ИНФО-ПАНЕЛЬ ---
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.94)';
+            ctx.fillRect(cx, cy, w, h);
+
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(cx, cy, w, h);
+
+            // Уголки
+            ctx.fillStyle = '#ff6600';
+            ctx.fillRect(cx, cy, 35, 12); ctx.fillRect(cx, cy, 12, 35);
+            ctx.fillRect(cx + w - 35, cy, 35, 12); ctx.fillRect(cx + w - 12, cy, 12, 35);
+            ctx.fillRect(cx, cy + h - 12, 35, 12); ctx.fillRect(cx, cy + h - 35, 12, 35);
+            ctx.fillRect(cx + w - 35, cy + h - 12, 35, 12); ctx.fillRect(cx + w - 12, cy + h - 35, 12, 35);
+
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 32px Orbitron, sans-serif';
+            ctx.fillStyle = '#ef4444';
+            ctx.fillText(data.label || 'TARGET LOCKED', cx + 30, cy + 55);
+
+            ctx.font = 'bold 18px Orbitron, monospace';
+            ctx.fillStyle = '#ff6600';
+            ctx.fillText('/// TELEMETRY ACTIVE ///', cx + 30, cy + 90);
+
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(cx + 30, cy + 105); ctx.lineTo(cx + w - 30, cy + 105); ctx.stroke();
+
+            ctx.font = '24px Rajdhani, monospace';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('DISTANCE:', cx + 30, cy + 160);
+            ctx.fillStyle = '#00f0ff';
+            ctx.font = 'bold 28px Orbitron, sans-serif';
+            ctx.fillText(`${data.dist} M`, cx + 180, cy + 160);
+
+            ctx.font = '24px Rajdhani, monospace';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('MATERIAL:', cx + 30, cy + 215);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = 'bold 24px Orbitron, sans-serif';
+            ctx.fillText(data.comp, cx + 180, cy + 215);
+
+            const progress = (data.time * 40) % 100;
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+            ctx.fillRect(cx + 30, cy + 245, w - 60, 28);
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(cx + 30, cy + 245, (w - 60) * (progress / 100), 28);
+
+            ctx.font = 'bold 18px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText(`ANALYZING... ${Math.floor(progress)}%`, cx + w / 2, cy + 265);
 
             hudCardMesh.material.map.needsUpdate = true;
         }
@@ -328,7 +333,6 @@
 
                 const dist = camera.position.distanceTo(lockedTarget.position).toFixed(1);
 
-                // Вычисляем относительное положение цели в поле зрения для имитации линии в интерфейсе
                 const localTargetPos = lockedTarget.position.clone();
                 camera.worldToLocal(localTargetPos);
 
@@ -337,7 +341,7 @@
                 const targetProjX = localTargetPos.x * scale;
                 const targetProjY = localTargetPos.y * scale;
 
-                const offsetX = (targetProjX >= 0) ? -0.32 : 0.32;
+                const offsetX = (targetProjX >= 0) ? -0.30 : 0.30;
                 const offsetY = -0.05;
 
                 const targetHudX = THREE.MathUtils.clamp(targetProjX + offsetX, -0.45, 0.45);
@@ -349,7 +353,6 @@
                 hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, hudZ);
                 hudCardMesh.visible = true;
 
-                // Передаем в текстуру карточки относительное смещение для отрисовки виртуальной палки-трейса
                 const relX = targetProjX - currentHudLocalX;
                 const relY = targetProjY - currentHudLocalY;
 
@@ -358,7 +361,6 @@
                     label: lockedTarget.userData.label,
                     dist,
                     comp: lockedTarget.userData.comp,
-                    isLeft: currentHudLocalX < 0,
                     relX,
                     relY
                 });
@@ -383,9 +385,8 @@
             const time = timestamp * 0.001;
             if (!renderer.xr.isPresenting && !isVrSimulated) {
                 const phi = THREE.MathUtils.degToRad(90 - lat);
-                const theta = THREE.MathUtils.degThread = THREE.MathUtils.degToRad(lon); // safe fallback
-                const safeTheta = THREE.MathUtils.degToRad(lon);
-                camera.lookAt(new THREE.Vector3(camera.position.x + 100 * Math.sin(phi) * Math.cos(safeTheta), camera.position.y + 100 * Math.cos(phi), camera.position.z + 100 * Math.sin(phi) * Math.sin(safeTheta)));
+                const theta = THREE.MathUtils.degToRad(lon);
+                camera.lookAt(new THREE.Vector3(camera.position.x + 100 * Math.sin(phi) * Math.cos(theta), camera.position.y + 100 * Math.cos(phi), camera.position.z + 100 * Math.sin(phi) * Math.sin(theta)));
             }
 
             targets.forEach((t) => {
