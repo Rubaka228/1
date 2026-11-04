@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Perfect Direct Trace</title>
+    <title>Iron Man WebXR HUD - Pure HUD Trace Simulation</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // PERFECT DIRECT TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. PRECISION VECTOR LOCKED</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // HUD-ONLY TRACE SIMULATION</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. VIRTUAL UI VECTOR ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -66,13 +66,12 @@
         let targets = [], lockedTarget = null;
         let targetLockReticleGroup, outerLockRing, innerLockRing;
         let hudCardMesh, hudCardCanvas, hudCardCtx;
-        let traceLineMesh;
         let isMouseDown = false, lon = 0, lat = 0;
         let onPointerDownPointerX = 0, onPointerDownPointerY = 0, onPointerDownLon = 0, onPointerDownLat = 0;
         let isVrSimulated = false;
 
         let currentHudLocalX = 0.28;
-        let currentHudLocalY = 0.0; // Снизили стартовую высоту по умолчанию
+        let currentHudLocalY = 0.0;
 
         function init() {
             const container = document.getElementById('webgl-container');
@@ -124,46 +123,41 @@
         function createCameraSpaceHUD() {
             hudCardCanvas = document.createElement('canvas');
             hudCardCanvas.width = 512;
-            hudCardCanvas.height = 320;
+            hudCardCanvas.height = 350; // Чуть увеличили по высоте под имитацию трейса
             hudCardCtx = hudCardCanvas.getContext('2d');
 
             const texture = new THREE.CanvasTexture(hudCardCanvas);
-            const geometry = new THREE.PlaneGeometry(0.38, 0.24); 
+            const geometry = new THREE.PlaneGeometry(0.40, 0.27); 
             const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthTest: false });
 
             hudCardMesh = new THREE.Mesh(geometry, material);
             hudCardMesh.visible = false;
             hudCardMesh.renderOrder = 999;
             
+            // Карточка крепится прямо к камере (на визор)
             camera.add(hudCardMesh);
             hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, -0.8);
-
-            // Прямая линия из 2 точек: точно в корпус дрона и в угол карточки
-            const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.9, depthTest: false });
-            const lineGeo = new THREE.BufferGeometry();
-            lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(2 * 3), 3));
-            traceLineMesh = new THREE.Line(lineGeo, lineMat);
-            traceLineMesh.visible = false;
-            traceLineMesh.renderOrder = 998;
-            camera.add(traceLineMesh);
         }
 
+        // Рендерим инфо-карточку вместе с виртуальным симулированным трейсом прямо на текстуре
         function updateHUDCanvasTexture(data) {
             const ctx = hudCardCtx;
-            ctx.clearRect(0, 0, 512, 320);
+            ctx.clearRect(0, 0, 512, 350);
 
+            // Основная панель
             ctx.fillStyle = 'rgba(2, 6, 23, 0.92)';
-            ctx.fillRect(0, 0, 512, 320);
+            ctx.fillRect(0, 0, 512, 300);
 
             ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 6;
-            ctx.strokeRect(0, 0, 512, 320);
+            ctx.strokeRect(0, 0, 512, 300);
 
+            // Уголки
             ctx.fillStyle = '#ff6600';
             ctx.fillRect(0, 0, 35, 12); ctx.fillRect(0, 0, 12, 35);
             ctx.fillRect(512 - 35, 0, 35, 12); ctx.fillRect(512 - 12, 0, 12, 35);
-            ctx.fillRect(0, 320 - 12, 35, 12); ctx.fillRect(0, 320 - 35, 12, 35);
-            ctx.fillRect(512 - 35, 320 - 12, 35, 12); ctx.fillRect(512 - 12, 320 - 35, 12, 35);
+            ctx.fillRect(0, 300 - 12, 35, 12); ctx.fillRect(0, 300 - 35, 12, 35);
+            ctx.fillRect(512 - 35, 300 - 12, 35, 12); ctx.fillRect(512 - 12, 300 - 35, 12, 35);
 
             ctx.textAlign = 'left';
             ctx.font = 'bold 32px Orbitron, sans-serif';
@@ -194,14 +188,38 @@
 
             const progress = (data.time * 40) % 100;
             ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
-            ctx.fillRect(30, 250, 452, 28);
+            ctx.fillRect(30, 240, 452, 28);
             ctx.fillStyle = '#ef4444';
-            ctx.fillRect(30, 250, 452 * (progress / 100), 28);
+            ctx.fillRect(30, 240, 452 * (progress / 100), 28);
 
             ctx.font = 'bold 18px Orbitron, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
-            ctx.fillText(`ANALYZING... ${Math.floor(progress)}%`, 256, 270);
+            ctx.fillText(`ANALYZING... ${Math.floor(progress)}%`, 256, 260);
+
+            // --- ВИЗУАЛЬНАЯ ИМИТАЦИЯ ТРЕЙСА (ПИКСЕЛЬНАЯ ПАЛКА ВНУТРИ HUD) ---
+            // Рисуем красивый векторный отросток, который уходит от нижнего угла панели к реальному положению цели на экране
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = '#00f0ff';
+            ctx.shadowBlur = 10;
+
+            const startX = (data.isLeft) ? 0 : 512; // Нижний угол карточки
+            const startY = 300;
+            
+            // Направление имитации основывается на реальном смещении координат дрона в пространстве визора
+            const endX = startX + (data.relX * -250); 
+            const endY = 350 + (data.relY * 150);
+
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+
+            // Точка на конце имитируемого луча
+            ctx.fillStyle = '#00f0ff';
+            ctx.beginPath(); ctx.arc(endX, endY, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0;
 
             hudCardMesh.material.map.needsUpdate = true;
         }
@@ -310,9 +328,7 @@
 
                 const dist = camera.position.distanceTo(lockedTarget.position).toFixed(1);
 
-                hudCardMesh.visible = true;
-                updateHUDCanvasTexture({ time, label: lockedTarget.userData.label, dist, comp: lockedTarget.userData.comp });
-
+                // Вычисляем относительное положение цели в поле зрения для имитации линии в интерфейсе
                 const localTargetPos = lockedTarget.position.clone();
                 camera.worldToLocal(localTargetPos);
 
@@ -322,31 +338,30 @@
                 const targetProjY = localTargetPos.y * scale;
 
                 const offsetX = (targetProjX >= 0) ? -0.32 : 0.32;
-                const offsetY = -0.05; // Опустили карточку ниже, чтобы она не висела высоко над целью
+                const offsetY = -0.05;
 
                 const targetHudX = THREE.MathUtils.clamp(targetProjX + offsetX, -0.45, 0.45);
-                const targetHudY = THREE.MathUtils.clamp(targetProjY + offsetY, -0.35, 0.15); // Ограничили вертикальный диапазон
+                const targetHudY = THREE.MathUtils.clamp(targetProjY + offsetY, -0.35, 0.15);
 
                 currentHudLocalX += (targetHudX - currentHudLocalX) * 0.2;
                 currentHudLocalY += (targetHudY - currentHudLocalY) * 0.2;
 
                 hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, hudZ);
+                hudCardMesh.visible = true;
 
-                // --- ТОЧНАЯ ПРЯМАЯ ЛИНИЯ К КОРПУСУ ДРОНА ---
-                const p1 = localTargetPos.clone(); // Точно в центр/корпус дрона без зависаний в воздухе
+                // Передаем в текстуру карточки относительное смещение для отрисовки виртуальной палки-трейса
+                const relX = targetProjX - currentHudLocalX;
+                const relY = targetProjY - currentHudLocalY;
 
-                const cornerOffset = new THREE.Vector3(
-                    (currentHudLocalX < targetProjX) ? 0.19 : -0.19,
-                    (currentHudLocalY < targetProjY) ? 0.12 : -0.12,
-                    0
-                );
-                const p2 = new THREE.Vector3(currentHudLocalX, currentHudLocalY, hudZ).add(cornerOffset);
-
-                const positions = traceLineMesh.geometry.attributes.position.array;
-                positions[0] = p1.x; positions[1] = p1.y; positions[2] = p1.z;
-                positions[3] = p2.x; positions[4] = p2.y; positions[5] = p2.z;
-                traceLineMesh.geometry.attributes.position.needsUpdate = true;
-                traceLineMesh.visible = true;
+                updateHUDCanvasTexture({
+                    time,
+                    label: lockedTarget.userData.label,
+                    dist,
+                    comp: lockedTarget.userData.comp,
+                    isLeft: currentHudLocalX < 0,
+                    relX,
+                    relY
+                });
 
             } else {
                 if (lockedTarget) {
@@ -355,7 +370,6 @@
                 }
                 targetLockReticleGroup.visible = false;
                 hudCardMesh.visible = false;
-                traceLineMesh.visible = false;
             }
         }
 
@@ -369,8 +383,9 @@
             const time = timestamp * 0.001;
             if (!renderer.xr.isPresenting && !isVrSimulated) {
                 const phi = THREE.MathUtils.degToRad(90 - lat);
-                const theta = THREE.MathUtils.degToRad(lon);
-                camera.lookAt(new THREE.Vector3(camera.position.x + 100 * Math.sin(phi) * Math.cos(theta), camera.position.y + 100 * Math.cos(phi), camera.position.z + 100 * Math.sin(phi) * Math.sin(theta)));
+                const theta = THREE.MathUtils.degThread = THREE.MathUtils.degToRad(lon); // safe fallback
+                const safeTheta = THREE.MathUtils.degToRad(lon);
+                camera.lookAt(new THREE.Vector3(camera.position.x + 100 * Math.sin(phi) * Math.cos(safeTheta), camera.position.y + 100 * Math.cos(phi), camera.position.z + 100 * Math.sin(phi) * Math.sin(safeTheta)));
             }
 
             targets.forEach((t) => {
