@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Dynamic Floating HUD</title>
+    <title>Iron Man WebXR HUD - True Head-Locked Screen HUD</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // DYNAMIC WORLD HUD</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. PROXIMITY VECTOR TRACKING</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // HEAD-LOCKED HUD</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. SCREEN-SPACE VECTOR TRACKING</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -95,7 +95,7 @@
 
             createFloatingTargets();
             createDynamicTargetLockReticle();
-            create3DHUDCard();
+            createHeadLockedHUDCard();
             setupWebXR();
             setupDesktopControls();
 
@@ -118,21 +118,27 @@
             scene.add(targetLockReticleGroup);
         }
 
-        function create3DHUDCard() {
+        function createHeadLockedHUDCard() {
             hudCardCanvas = document.createElement('canvas');
             hudCardCanvas.width = 512;
             hudCardCanvas.height = 320;
             hudCardCtx = hudCardCanvas.getContext('2d');
 
             const texture = new THREE.CanvasTexture(hudCardCanvas);
-            const geometry = new THREE.PlaneGeometry(0.9, 0.55); // Размер карточки в метрах мира
-            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+            // Большой размер карточки прямо перед глазами (на расстоянии 0.8 метра)
+            const geometry = new THREE.PlaneGeometry(0.5, 0.31); 
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthTest: false });
 
             hudCardMesh = new THREE.Mesh(geometry, material);
             hudCardMesh.visible = false;
-            scene.add(hudCardMesh); // Добавляем в общую сцену, а не в камеру!
+            
+            // ЖЕСТКО крепим к камере (голове), чтобы она всегда была перед лицом как стекло шлема
+            camera.add(hudCardMesh);
+            // Смещаем правее и выше центра, чтобы она висела сбоку и не загораживала то, на что смотришь
+            hudCardMesh.position.set(0.32, 0.15, -0.8);
 
-            const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.8 });
+            // Линия-трейс от реальной цели до экрана шлема
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.8, depthTest: false });
             const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
             traceLineMesh = new THREE.Line(lineGeo, lineMat);
             traceLineMesh.visible = false;
@@ -301,27 +307,20 @@
 
                 const dist = camera.position.distanceTo(lockedTarget.position).toFixed(1);
 
-                // ДИНАМИЧЕСКОЕ РАСПОЛОЖЕНИЕ КАРТОЧКИ В МИРЕ:
-                // Ставим карточку чуть выше и правее самого дрона в мировых координатах, чтобы она НЕ перекрывала его
-                const cardWorldPos = lockedTarget.position.clone().add(new THREE.Vector3(1.2, 1.0, 0));
-                hudCardMesh.position.copy(cardWorldPos);
-                
-                // Делаем Billboard: карточка всегда развернута лицом к камере (глазам), где бы ты ни находился
-                hudCardMesh.quaternion.copy(camera.quaternion);
                 hudCardMesh.visible = true;
-
                 updateHUDCanvasTexture({ time, label: lockedTarget.userData.label, dist, comp: lockedTarget.userData.comp });
 
-                // Рисуем правильную линию-трейс от центра цели прямо к нижней левой точке карточки в пространстве
-                const cardBottomLeft = cardWorldPos.clone().add(new THREE.Vector3(-0.45, -0.27, 0)); // Углы плоскости карточки
+                // Точные мировые координаты угла экранного HUD для линии-трейса
+                const cardWorldPos = new THREE.Vector3();
+                hudCardMesh.getWorldPosition(cardWorldPos);
 
                 const positions = traceLineMesh.geometry.attributes.position.array;
                 positions[0] = lockedTarget.position.x;
                 positions[1] = lockedTarget.position.y;
                 positions[2] = lockedTarget.position.z;
-                positions[3] = cardBottomLeft.x;
-                positions[4] = cardBottomLeft.y;
-                positions[5] = cardBottomLeft.z;
+                positions[3] = cardWorldPos.x - 0.2; // левый край карточки
+                positions[4] = cardWorldPos.y - 0.15; // нижний край карточки
+                positions[5] = cardWorldPos.z;
                 traceLineMesh.geometry.attributes.position.needsUpdate = true;
                 traceLineMesh.visible = true;
 
