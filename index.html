@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Pure Edge-to-Target Trace</title>
+    <title>Iron Man WebXR HUD - Validated Structure</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // PURE EDGE-TO-TARGET TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. NEW DIRECT VECTOR CORE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // VALIDATED HUD</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. CLEAN HTML STRUCTURE ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -138,12 +138,10 @@
             hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, -0.8);
         }
 
-        // --- АБСОЛЮТНО НОВАЯ ЛОГИКА ТРЕЙСА ---
         function updateHUDCanvasTexture(data) {
             const ctx = hudCardCtx;
             ctx.clearRect(0, 0, 912, 700);
 
-            // Координаты инфо-блока на холсте
             const cx = 200;
             const cy = 200;
             const w = 512;
@@ -158,19 +156,16 @@
             ctx.shadowColor = '#00f0ff';
             ctx.shadowBlur = 15;
 
-            // 1. Позиция центра дрона (цели) в пикселях холста относительно центра карточки
             const scaleFactor = 700;
             const targetPixelX = cardCenterX + (data.targetProjX - data.hudX) * scaleFactor;
-            const targetPixelY = cardCenterY - (data.targetProjY - data.hudY) * scaleFactor; // инверсия Y для Canvas
+            const targetPixelY = cardCenterY - (data.targetProjY - data.hudY) * scaleFactor;
 
-            // 2. Направление единичного вектора от центра карточки к центру дрона
             const dx = targetPixelX - cardCenterX;
             const dy = targetPixelY - cardCenterY;
             const distance = Math.sqrt(dx * dx + dy * dy) || 1;
             const unitX = dx / distance;
             const unitY = dy / distance;
 
-            // 3. Вычисление точки старта на ребре инфо-блока (пересечение луча с прямоугольником карточки)
             const halfW = w / 2;
             const halfH = h / 2;
             
@@ -181,7 +176,6 @@
             const startX = cardCenterX + unitX * t;
             const startY = cardCenterY + unitY * t;
 
-            // 4. Конец палочки торчит наружу из ребра карточки строго в сторону центра дрона
             const pointerLength = 120;
             const endX = startX + unitX * pointerLength;
             const endY = startY + unitY * pointerLength;
@@ -192,7 +186,6 @@
             ctx.stroke();
             ctx.restore();
 
-            // --- ОСНОВНАЯ ИНФО-ПАНЕЛЬ ---
             ctx.fillStyle = 'rgba(2, 6, 23, 0.94)';
             ctx.fillRect(cx, cy, w, h);
 
@@ -200,7 +193,6 @@
             ctx.lineWidth = 6;
             ctx.strokeRect(cx, cy, w, h);
 
-            // Уголки
             ctx.fillStyle = '#ff6600';
             ctx.fillRect(cx, cy, 35, 12); ctx.fillRect(cx, cy, 12, 35);
             ctx.fillRect(cx + w - 35, cy, 35, 12); ctx.fillRect(cx + w - 12, cy, 12, 35);
@@ -360,7 +352,6 @@
                 const targetProjX = localTargetPos.x * scale;
                 const targetProjY = localTargetPos.y * scale;
 
-                // Возвращаем идеальное красивое позиционирование инфо-боксов возле дрона
                 const offsetX = (targetProjX >= 0) ? -0.30 : 0.30;
                 const offsetY = -0.05;
 
