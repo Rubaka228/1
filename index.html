@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Full 360 Unlocked Trace</title>
+    <title>Iron Man WebXR HUD - Pure Angle Vector Trace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // UNLOCKED 360 TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. PIXEL-SPACE VECTOR LOCKED</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // PURE ANGLE TRACE</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. 360 VECTOR UNLOCKED</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -123,7 +123,7 @@
         function createCameraSpaceHUD() {
             hudCardCanvas = document.createElement('canvas');
             hudCardCanvas.width = 900;
-            hudCardCanvas.height = 600; // Расширили Canvas во все стороны, чтобы вектор опускался куда угодно
+            hudCardCanvas.height = 600; 
             hudCardCtx = hudCardCanvas.getContext('2d');
 
             const texture = new THREE.CanvasTexture(hudCardCanvas);
@@ -147,31 +147,40 @@
             const w = 512;
             const h = 300;
 
-            // --- РАЗБЛОКИРОВАННЫЙ ВЕКТОР 360 ГРАДУСОВ ---
+            // --- ЧИСТЫЙ И ТОЧНЫЙ ВЕКТОР ТРЕЙСА (БЕЗ ДЕРГАНИЙ И ОГРАНИЧЕНИЙ ГОРИЗОНТА) ---
             ctx.save();
             ctx.strokeStyle = '#00f0ff';
             ctx.lineWidth = 4;
             ctx.shadowColor = '#00f0ff';
             ctx.shadowBlur = 12;
 
-            // Ближайший край карточки к цели
-            const startX = (data.targetProjX < data.hudX) ? cx : cx + w;
-            const startY = cy + h / 2;
+            // Центр карточки на холсте
+            const cardCenterX = cx + w / 2;
+            const cardCenterY = cy + h / 2;
 
-            // Перевод локальных 3D координат проекции цели в пиксели этого холста Canvas
-            // Учитываем инверсию Y (в Canvas Y идет сверху вниз)
-            const pixelScale = 1000; 
-            const targetPixelX = (cx + w / 2) + (data.targetProjX - data.hudX) * pixelScale;
-            const targetPixelY = (cy + h / 2) - (data.targetProjY - data.hudY) * pixelScale; // МИНУС отменяет инверсию оси Y
+            // Определяем, с какого бокового края карточки пустить палочку (слева или справа)
+            const targetIsToTheLeft = data.targetProjX < data.hudX;
+            const startX = targetIsToTheLeft ? cx : cx + w;
+            const startY = cardCenterY;
 
-            // Вектор от края карточки прямо в сторону цели
-            const dx = targetPixelX - startX;
-            const dy = targetPixelY - startY;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            // Направление к цели в пикселях холста (прямое вычисление разницы экранных координат)
+            const dx = (data.targetProjX - data.hudX);
+            const dy = (data.targetProjY - data.hudY);
 
-            const lineLen = 130;
-            const endX = startX + (dx / dist) * lineLen;
-            const endY = startY + (dy / dist) * lineLen;
+            // Масштабируем смещение под пиксели холста (инвертируем Y для Canvas)
+            const scaleFactor = 650;
+            const targetCanvasX = cardCenterX + (dx * scaleFactor);
+            const targetCanvasY = cardCenterY - (dy * scaleFactor);
+
+            // Строим вектор направления от края карточки к цели
+            const vX = targetCanvasX - startX;
+            const vY = targetCanvasY - startY;
+            const length = Math.sqrt(vX * vX + vY * vY) || 1;
+
+            // Фиксированная длина палочки-указателя
+            const pointerLen = 120;
+            const endX = startX + (vX / length) * pointerLen;
+            const endY = startY + (vY / length) * pointerLen;
 
             ctx.beginPath();
             ctx.moveTo(startX, startY);
