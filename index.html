@@ -72,7 +72,7 @@
         let isVrSimulated = false;
 
         let currentHudLocalX = 0.28;
-        let currentHudLocalY = 0.16;
+        let currentHudLocalY = 0.0; // Снизили стартовую высоту по умолчанию
 
         function init() {
             const container = document.getElementById('webgl-container');
@@ -322,10 +322,10 @@
                 const targetProjY = localTargetPos.y * scale;
 
                 const offsetX = (targetProjX >= 0) ? -0.32 : 0.32;
-                const offsetY = 0.18;
+                const offsetY = -0.05; // Опустили карточку ниже, чтобы она не висела высоко над целью
 
                 const targetHudX = THREE.MathUtils.clamp(targetProjX + offsetX, -0.45, 0.45);
-                const targetHudY = THREE.MathUtils.clamp(targetProjY + offsetY, -0.3, 0.3);
+                const targetHudY = THREE.MathUtils.clamp(targetProjY + offsetY, -0.35, 0.15); // Ограничили вертикальный диапазон
 
                 currentHudLocalX += (targetHudX - currentHudLocalX) * 0.2;
                 currentHudLocalY += (targetHudY - currentHudLocalY) * 0.2;
