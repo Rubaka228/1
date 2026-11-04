@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Validated Structure</title>
+    <title>Iron Man WebXR HUD - 360 Omni-Directional Card</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // VALIDATED HUD</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. CLEAN HTML STRUCTURE ACTIVE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // 360 OMNI-DIRECTIONAL HUD</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. FULL 360 CARD PLACEMENT ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -157,8 +157,11 @@
             ctx.shadowBlur = 15;
 
             const scaleFactor = 700;
-            const targetPixelX = cardCenterX + (data.targetProjX - data.hudX) * scaleFactor;
-            const targetPixelY = cardCenterY - (data.targetProjY - data.hudY) * scaleFactor;
+            const cardCanvasOffsetX = data.hudX * scaleFactor;
+            const cardCanvasOffsetY = data.hudY * scaleFactor;
+
+            const targetPixelX = cardCenterX + (data.targetProjX * scaleFactor) - cardCanvasOffsetX;
+            const targetPixelY = cardCenterY - (data.targetProjY * scaleFactor) + cardCanvasOffsetY;
 
             const dx = targetPixelX - cardCenterX;
             const dy = targetPixelY - cardCenterY;
@@ -186,6 +189,7 @@
             ctx.stroke();
             ctx.restore();
 
+            // --- ОСНОВНАЯ ИНФО-ПАНЕЛЬ ---
             ctx.fillStyle = 'rgba(2, 6, 23, 0.94)';
             ctx.fillRect(cx, cy, w, h);
 
@@ -193,6 +197,7 @@
             ctx.lineWidth = 6;
             ctx.strokeRect(cx, cy, w, h);
 
+            // Уголки
             ctx.fillStyle = '#ff6600';
             ctx.fillRect(cx, cy, 35, 12); ctx.fillRect(cx, cy, 12, 35);
             ctx.fillRect(cx + w - 35, cy, 35, 12); ctx.fillRect(cx + w - 12, cy, 12, 35);
@@ -344,7 +349,10 @@
 
                 const dist = camera.position.distanceTo(lockedTarget.position).toFixed(1);
 
-                const localTargetPos = lockedTarget.position.clone();
+                const meshWorldPos = new THREE.Vector3();
+                lockedTarget.userData.mesh.getWorldPosition(meshWorldPos);
+
+                const localTargetPos = meshWorldPos.clone();
                 camera.worldToLocal(localTargetPos);
 
                 const hudZ = -0.8;
@@ -352,14 +360,20 @@
                 const targetProjX = localTargetPos.x * scale;
                 const targetProjY = localTargetPos.y * scale;
 
-                const offsetX = (targetProjX >= 0) ? -0.30 : 0.30;
-                const offsetY = -0.05;
+                // --- 360 OMNI-DIRECTIONAL OFFSET ---
+                // Карточка теперь смещается в ПРОТИВОПОЛОЖНУЮ сторону от цели по обеим осям (X и Y),
+                // позволяя инфо-блоку располагаться сверху, снизу, слева или справа в зависимости от положения дрона.
+                const offsetDistance = 0.32;
+                const angleToTarget = Math.atan2(targetProjY, targetProjX);
+                
+                const targetHudX = targetProjX - Math.cos(angleToTarget) * offsetDistance;
+                const targetHudY = targetProjY - Math.sin(angleToTarget) * offsetDistance;
 
-                const targetHudX = THREE.MathUtils.clamp(targetProjX + offsetX, -0.45, 0.45);
-                const targetHudY = THREE.MathUtils.clamp(targetProjY + offsetY, -0.35, 0.25);
+                const clampedHudX = THREE.MathUtils.clamp(targetHudX, -0.5, 0.5);
+                const clampedHudY = THREE.MathUtils.clamp(targetHudY, -0.4, 0.4);
 
-                currentHudLocalX += (targetHudX - currentHudLocalX) * 0.2;
-                currentHudLocalY += (targetHudY - currentHudLocalY) * 0.2;
+                currentHudLocalX += (clampedHudX - currentHudLocalX) * 0.2;
+                currentHudLocalY += (clampedHudY - currentHudLocalY) * 0.2;
 
                 hudCardMesh.position.set(currentHudLocalX, currentHudLocalY, hudZ);
                 hudCardMesh.visible = true;
