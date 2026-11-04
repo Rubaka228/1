@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Direct Edge Trace</title>
+    <title>Iron Man WebXR HUD - Unlocked Downward Trace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // DIRECT EDGE TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. RELIABLE OMNI-VECTOR ACTIVE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // UNLOCKED DOWNWARD TRACE</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. FULL 360 FREEDOM ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -150,7 +150,7 @@
             const cardCenterX = cx + w / 2;
             const cardCenterY = cy + h / 2;
 
-            // --- ЖЕЛЕЗОБЕТОННАЯ ПРИВЯЗКА К БЛИЖАЙШЕЙ ГРАНИ (ВЕРХ, НИЗ, ЛЕВО, ПРАВО) ---
+            // --- СВОБОДНЫЙ ВЕКТОР НА 360 ГРАДУСОВ (НИЖЕ ГОРИЗОНТА БЕЗ ОГРАНИЧЕНИЙ) ---
             ctx.save();
             ctx.strokeStyle = '#00f0ff';
             ctx.lineWidth = 5;
@@ -159,6 +159,7 @@
 
             const scaleFactor = 700;
             const targetCanvasX = cardCenterX + (data.targetProjX - data.hudX) * scaleFactor;
+            // Убедились, что инверсия оси Y чистая и не заблокирована
             const targetCanvasY = cardCenterY - (data.targetProjY - data.hudY) * scaleFactor;
 
             const dx = targetCanvasX - cardCenterX;
@@ -167,21 +168,17 @@
             const unitX = dx / len;
             const unitY = dy / len;
 
-            // Определяем, какая грань карточки ближе к направлению на цель
-            let startX = cardCenterX;
-            let startY = cardCenterY;
+            // Вычисляем пересечение с границами прямоугольника карточки (работает во все стороны)
+            const halfW = w / 2;
+            const halfH = h / 2;
+            
+            const scaleX = unitX !== 0 ? halfW / Math.abs(unitX) : Infinity;
+            const scaleY = unitY !== 0 ? halfH / Math.abs(unitY) : Infinity;
+            const t = Math.min(scaleX, scaleY);
 
-            if (Math.abs(unitX) > Math.abs(unitY)) {
-                // Цель левее или правее — берем левую или правую границу карточки
-                startX = (unitX > 0) ? (cx + w) : cx;
-                startY = cardCenterY + unitY * (h / 2); // сдвигаем по высоте пропорционально
-            } else {
-                // Цель выше или ниже — берем верхнюю или нижнюю границу карточки
-                startX = cardCenterX + unitX * (w / 2); // сдвигаем по ширине пропорционально
-                startY = (unitY > 0) ? (cy + h) : cy;
-            }
+            const startX = cardCenterX + unitX * t;
+            const startY = cardCenterY + unitY * t;
 
-            // Конец палочки торчит наружу на 110 пикселей строго в направлении центра цели
             const pointerLength = 110;
             const endX = startX + unitX * pointerLength;
             const endY = startY + unitY * pointerLength;
@@ -362,8 +359,10 @@
 
                 const offsetX = (targetProjX >= 0) ? -0.30 : 0.30;
                 
-                const targetHudX = THREE.MathUtils.clamp(targetProjX + offsetX, -0.45, 0.45);
-                const targetHudY = THREE.MathUtils.clamp(targetProjY, -0.3, 0.3);
+                const targetHudX = THREE.MathUtils.clamp(targetProjX + offsetX, -0.5, 0.5);
+                // ПОЛНОСТЬЮ РАЗБЛОКИРОВАННЫЙ ДИАПАЗОН ПО ВЕРТИКАЛИ: 
+                // Карточка теперь свободно следует за целью вверх и вниз без искусственных ограничений.
+                const targetHudY = THREE.MathUtils.clamp(targetProjY, -0.45, 0.45);
 
                 currentHudLocalX += (targetHudX - currentHudLocalX) * 0.2;
                 currentHudLocalY += (targetHudY - currentHudLocalY) * 0.2;
