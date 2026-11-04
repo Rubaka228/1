@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man 3D WebXR HUD - Fixed Scale & HUD</title>
+    <title>Iron Man WebXR HUD - Head-Locked HUD with Screen-Space Target Tracking</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -19,13 +19,15 @@
 <body class="relative w-screen h-screen overflow-hidden bg-slate-950 scanlines">
     <div id="webgl-container" class="absolute inset-0 w-full h-full z-0 cursor-grab active:cursor-grabbing"></div>
     <div id="vr-lens-overlay" class="pointer-events-none absolute inset-0 z-5 opacity-0 transition-opacity duration-500 bg-[radial-gradient(circle_at_center,transparent_45%,rgba(2,6,23,0.75)_80%,rgba(2,6,23,0.98)_100%)] border-[10px] border-slate-900/60 rounded-3xl"></div>
-    <canvas id="hud-2d-overlay" class="pointer-events-none absolute inset-0 z-15 w-full h-full"></canvas>
+    
+    <!-- 2D Canvas Overlay для нарисованного прямо перед глазами ХУДа и трейсов -->
+    <canvas id="hud-2d-overlay" class="pointer-events-none absolute inset-0 z-20 w-full h-full"></canvas>
 
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // MARVEL HUD V2</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. FIXED 3D WORLD INFO & ELBOW TRACE</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // HEAD-LOCKED HUD</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. SCREEN-SPACE VECTOR TRACKING ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -63,89 +65,16 @@
         }
         const audio = new HUDSoundEffects();
 
-        class HUDCanvasTexture {
-            constructor(width, height, drawFn) {
-                this.canvas = document.createElement('canvas');
-                this.canvas.width = width; this.canvas.height = height;
-                this.ctx = this.canvas.getContext('2d');
-                this.texture = new THREE.CanvasTexture(this.canvas);
-                this.texture.minFilter = THREE.LinearFilter;
-                this.texture.magFilter = THREE.LinearFilter;
-                this.drawFn = drawFn;
-                this.update();
-            }
-            update(data = {}) {
-                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-                this.drawFn(this.ctx, this.canvas.width, this.canvas.height, data);
-                this.texture.needsUpdate = true;
-            }
-        }
-
-        // Рисуем крупный, читаемый в VR инфо-блок (как в кино)
-        function drawHoloInfoWindow(ctx, w, h, data) {
-            ctx.clearRect(0, 0, w, h);
-            ctx.fillStyle = 'rgba(2, 6, 23, 0.92)';
-            ctx.fillRect(0, 0, w, h);
-
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 6;
-            ctx.shadowColor = '#ef4444';
-            ctx.shadowBlur = 20;
-            ctx.strokeRect(6, 6, w - 12, h - 12);
-
-            // Уголки рамки
-            ctx.fillStyle = '#ff6600';
-            ctx.fillRect(0, 0, 40, 10); ctx.fillRect(0, 0, 10, 40);
-            ctx.fillRect(w - 40, 0, 40, 10); ctx.fillRect(w - 10, 0, 10, 40);
-            ctx.fillRect(0, h - 10, 40, 10); ctx.fillRect(0, h - 40, 10, 40);
-            ctx.fillRect(w - 40, h - 10, 40, 10); ctx.fillRect(w - 10, h - 40, 10, 40);
-
-            ctx.textAlign = 'left';
-            ctx.font = 'bold 36px Orbitron, sans-serif';
-            ctx.fillStyle = '#ef4444';
-            ctx.fillText(data.label || 'TARGET LOCKED', 40, 60);
-
-            ctx.font = 'bold 18px Orbitron, monospace';
-            ctx.fillStyle = '#ff6600';
-            ctx.fillText('/// THREAT TELEMETRY & WEAPON LOCK ///', 40, 98);
-
-            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
-            ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(40, 120); ctx.lineTo(w - 40, 120); ctx.stroke();
-
-            ctx.font = '22px Rajdhani, monospace';
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText('DISTANCE:', 40, 175);
-            ctx.fillStyle = '#00f0ff';
-            ctx.font = 'bold 28px Orbitron, sans-serif';
-            ctx.fillText(`${data.dist || '0.0'} M`, 220, 175);
-
-            ctx.font = '22px Rajdhani, monospace';
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillText('MATERIAL:', 40, 230);
-            ctx.fillStyle = '#e2e8f0';
-            ctx.font = 'bold 26px Orbitron, sans-serif';
-            ctx.fillText(data.comp || 'VIBRANIUM ALLOY', 220, 230);
-
-            const progress = ((data.time || 0) * 40) % 100;
-            ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
-            ctx.fillRect(40, 280, w - 80, 28);
-            ctx.fillStyle = '#ef4444';
-            ctx.fillRect(40, 280, (w - 80) * (progress / 100), 28);
-
-            ctx.font = 'bold 18px Orbitron, sans-serif';
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.fillText(`ANALYZING TARGET MODEL... ${Math.floor(progress)}%`, w / 2, 300);
-            ctx.shadowBlur = 0;
-        }
-
         let scene, camera, renderer;
         let targets = [], lockedTarget = null;
         let targetLockReticleGroup, outerLockRing, innerLockRing;
         let isMouseDown = false, lon = 0, lat = 0;
         let onPointerDownPointerX = 0, onPointerDownPointerY = 0, onPointerDownLon = 0, onPointerDownLat = 0;
         let isVrSimulated = false;
+
+        // Плавные координаты для хед-локед карточки ХУДа на экране, чтобы она не дергалась
+        let currentCardScreenX = window.innerWidth - 350;
+        let currentCardScreenY = 120;
 
         function init() {
             const container = document.getElementById('webgl-container');
@@ -172,7 +101,6 @@
 
             createFloatingTargets();
             createDynamicTargetLockReticle();
-            buildWorldHoloCard();
             setupWebXR();
             setupDesktopControls();
 
@@ -184,20 +112,6 @@
                 audio.enabled = !audio.enabled;
                 e.target.innerText = `SOUND: ${audio.enabled ? 'ON' : 'OFF'}`;
             });
-        }
-
-        function buildWorldHoloCard() {
-            window.visorHoloTexture = new HUDCanvasTexture(1024, 640, drawHoloInfoWindow);
-            // Увеличили размер плоскости в 3D мире, чтобы она была крупной и читаемой (1.6 на 1.0 метр)
-            window.visorHoloMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.0), new THREE.MeshBasicMaterial({
-                map: window.visorHoloTexture.texture,
-                transparent: true,
-                opacity: 0,
-                side: THREE.DoubleSide,
-                depthTest: false
-            }));
-            window.visorHoloMesh.visible = false;
-            scene.add(window.visorHoloMesh);
         }
 
         function createDynamicTargetLockReticle() {
@@ -286,6 +200,65 @@
             document.addEventListener('pointerup', () => { isMouseDown = false; });
         }
 
+        // Отрисовка красивой HUD-карточки прямо на 2D Canvas поверх экрана (в стиле фильма)
+        function drawScreenHoloCard(ctx, x, y, w, h, data) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.88)';
+            ctx.fillRect(x, y, w, h);
+
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = '#ef4444';
+            ctx.shadowBlur = 15;
+            ctx.strokeRect(x, y, w, h);
+
+            // Уголки
+            ctx.fillStyle = '#ff6600';
+            ctx.fillRect(x, y, 25, 6); ctx.fillRect(x, y, 6, 25);
+            ctx.fillRect(x + w - 25, y, 25, 6); ctx.fillRect(x + w - 6, y, 6, 25);
+            ctx.fillRect(x, y + h - 6, 25, 6); ctx.fillRect(x, y + h - 25, 6, 25);
+            ctx.fillRect(x + w - 25, y + h - 6, 25, 6); ctx.fillRect(x + w - 6, y + h - 25, 6, 25);
+
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.fillStyle = '#ef4444';
+            ctx.fillText(data.label || 'TARGET LOCKED', x + 20, y + 35);
+
+            ctx.font = 'bold 13px Orbitron, monospace';
+            ctx.fillStyle = '#ff6600';
+            ctx.fillText('/// THREAT TELEMETRY ///', x + 20, y + 60);
+
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(x + 20, y + 72); ctx.lineTo(x + w - 20, y + 72); ctx.stroke();
+
+            ctx.font = '16px Rajdhani, monospace';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('DISTANCE:', x + 20, y + 110);
+            ctx.fillStyle = '#00f0ff';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.fillText(`${data.dist || '0.0'} M`, x + 130, y + 110);
+
+            ctx.font = '16px Rajdhani, monospace';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('MATERIAL:', x + 20, y + 145);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = 'bold 16px Orbitron, sans-serif';
+            ctx.fillText(data.comp || 'VIBRANIUM', x + 130, y + 145);
+
+            const progress = ((data.time || 0) * 40) % 100;
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+            ctx.fillRect(x + 20, y + 175, w - 40, 18);
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(x + 20, y + 175, (w - 40) * (progress / 100), 18);
+
+            ctx.font = 'bold 12px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText(`ANALYZING... ${Math.floor(progress)}%`, x + w / 2, y + 189);
+            ctx.restore();
+        }
+
         function checkGazeTargetLock(time) {
             const cameraDirection = new THREE.Vector3();
             camera.getWorldDirection(cameraDirection);
@@ -316,40 +289,50 @@
                 targetLockReticleGroup.lookAt(camera.position);
 
                 const dist = camera.position.distanceTo(lockedTarget.position).toFixed(1);
-                
-                // РАЗМЕЩАЕМ КРУПНЫЙ ИНФО-БЛОК В 3Д МИРЕ РЯДОМ С ЦЕЛЬЮ (справа-сверху от неё)
-                const targetWorldPos = lockedTarget.position.clone();
-                const cardWorldPos = targetWorldPos.clone().add(new THREE.Vector3(1.2, 1.2, 0));
 
-                window.visorHoloMesh.visible = true;
-                window.visorHoloMesh.position.copy(cardWorldPos);
-                window.visorHoloMesh.lookAt(camera.position); // Всегда лицом к глазам
-                window.visorHoloMesh.material.opacity = THREE.MathUtils.lerp(window.visorHoloMesh.material.opacity, 0.95, 0.2);
-                
-                window.visorHoloTexture.update({ time, label: lockedTarget.userData.label, dist, comp: lockedTarget.userData.comp });
+                // Считаем экранные координаты центра цели
+                const p1 = lockedTarget.position.clone().project(camera);
+                if (p1.z <= 1.0) {
+                    const targetScreenX = (p1.x * 0.5 + 0.5) * window.innerWidth;
+                    const targetScreenY = (-(p1.y * 0.5) + 0.5) * window.innerHeight;
 
-                // РИСУЕМ КРАСИВЫЙ ЛОМАНЫЙ 2D ТРЕЙС (ЭЛБОУ) ОТ ЦЕЛИ К КАРТОЧКЕ
-                const p1 = targetWorldPos.clone().project(camera);
-                const p2 = cardWorldPos.clone().project(camera);
+                    // Целевая позиция карточки: висит в поле зрения (например, справа-сверху от цели, но не на ней)
+                    const cardW = 320, cardH = 210;
+                    let desiredCardX = targetScreenX + 80;
+                    let desiredCardY = targetScreenY - 120;
 
-                if (p1.z <= 1.0 && p2.z <= 1.0) {
-                    const x1 = (p1.x * 0.5 + 0.5) * window.innerWidth;
-                    const y1 = (-(p1.y * 0.5) + 0.5) * window.innerHeight;
-                    const x2 = (p2.x * 0.5 + 0.5) * window.innerWidth;
-                    const y2 = (-(p2.y * 0.5) + 0.5) * window.innerHeight;
+                    // Ограничиваем, чтобы карточка не улетала за границы экрана
+                    desiredCardX = Math.max(20, Math.min(window.innerWidth - cardW - 20, desiredCardX));
+                    desiredCardY = Math.max(20, Math.min(window.innerHeight - cardH - 20, desiredCardY));
 
+                    // Плавное следование (интерполяция) карточки ХУДа на экране
+                    currentCardScreenX += (desiredCardX - currentCardScreenX) * 0.2;
+                    currentCardScreenY += (desiredCardY - currentCardScreenY) * 0.2;
+
+                    // Рисуем ХУД-карточку прямо перед глазами (Screen-Space)
+                    drawScreenHoloCard(overlayCtx, currentCardScreenX, currentCardScreenY, cardW, cardH, {
+                        time, label: lockedTarget.userData.label, dist, comp: lockedTarget.userData.comp
+                    });
+
+                    // Рисуем ломаный трейсер (elbow stem) от цели прямо к углу нашей экранной карточки
                     overlayCtx.save();
-                    overlayCtx.strokeStyle = '#00f0ff'; overlayCtx.lineWidth = 3;
-                    overlayCtx.shadowColor = '#00f0ff'; overlayCtx.shadowBlur = 12;
-                    
+                    overlayCtx.strokeStyle = '#00f0ff';
+                    overlayCtx.lineWidth = 2.5;
+                    overlayCtx.shadowColor = '#00f0ff';
+                    overlayCtx.shadowBlur = 10;
+
+                    const cornerX = currentCardScreenX;
+                    const cornerY = currentCardScreenY + cardH;
+
                     overlayCtx.beginPath();
-                    overlayCtx.moveTo(x1, y1);
-                    overlayCtx.lineTo(x2, y1); // Ломаный угол трейса
-                    overlayCtx.lineTo(x2, y2);
+                    overlayCtx.moveTo(targetScreenX, targetScreenY);
+                    overlayCtx.lineTo(cornerX, targetScreenY); // Горизонтальный излом
+                    overlayCtx.lineTo(cornerX, cornerY);     // Вертикальный к углу карточки
                     overlayCtx.stroke();
 
+                    // Точка на самой цели
                     overlayCtx.fillStyle = '#ef4444';
-                    overlayCtx.beginPath(); overlayCtx.arc(x1, y1, 6, 0, Math.PI * 2); overlayCtx.fill();
+                    overlayCtx.beginPath(); overlayCtx.arc(targetScreenX, targetScreenY, 5, 0, Math.PI * 2); overlayCtx.fill();
                     overlayCtx.restore();
                 }
             } else {
@@ -358,8 +341,6 @@
                     lockedTarget = null;
                 }
                 targetLockReticleGroup.visible = false;
-                window.visorHoloMesh.material.opacity = THREE.MathUtils.lerp(window.visorHoloMesh.material.opacity, 0, 0.2);
-                if (window.visorHoloMesh.material.opacity < 0.02) window.visorHoloMesh.visible = false;
             }
         }
 
