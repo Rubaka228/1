@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Iron Man WebXR HUD - Precision Directional Trace</title>
+    <title>Iron Man WebXR HUD - Corrected UI Vector Trace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
@@ -23,8 +23,8 @@
     <div id="desktop-ui" class="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-6">
         <div class="flex justify-between items-center pointer-events-auto">
             <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-xl border border-sky-500/50 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // DYNAMIC DIRECTIONAL TRACE</h1>
-                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. PRECISION VECTOR LOCKED</p>
+                <h1 class="font-orbitron font-extrabold text-sky-400 text-sm tracking-widest">MARK LXXXV // FIXED UI VECTOR TRACE</h1>
+                <p class="text-xs text-slate-400 font-mono">F.R.I.D.A.Y. SYNC VECTOR ACTIVE</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="audio-toggle" class="bg-slate-900/80 hover:bg-slate-800 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-xl text-xs font-orbitron transition">SOUND: ON</button>
@@ -147,37 +147,38 @@
             const w = 512;
             const h = 300;
 
-            // --- ТОЧНЫЙ ВЕКТОР ТРЕЙСА (БЕЗ ТОЧКИ НА КОНЦЕ, С КОРРЕКТНОЙ ЧУВСТВИТЕЛЬНОСТЬЮ) ---
+            // --- ИСПРАВЛЕННЫЙ ВЕКТОР ТРЕЙСА (БЕЗ ТОЧКИ, С ПРАВИЛЬНЫМ НАПРАВЛЕНИЕМ) ---
             ctx.save();
             ctx.strokeStyle = '#00f0ff';
             ctx.lineWidth = 4;
             ctx.shadowColor = '#00f0ff';
             ctx.shadowBlur = 12;
 
-            // Начало палки от края рамки карточки
-            const targetIsToTheLeft = data.relX < 0;
-            const startX = targetIsToTheLeft ? cx : cx + w;
-            const startY = cy + h / 2;
+            // Вычисляем центр карточки на холсте
+            const cardCenterX = cx + w / 2;
+            const cardCenterY = cy + h / 2;
 
-            // Вектор относительно положения карточки
-            const dirX = data.relX;
-            // Учитываем чувствительность по вертикали: если карточка сверху, палка направлена точно вниз на цель
-            const dirY = -data.relY * 1.6; 
-            const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+            // Направление от центра карточки к цели (с учетом правильных пропорций экрана)
+            const targetScreenRelativeX = data.relX * 400; 
+            const targetScreenRelativeY = -data.relY * 400; // Инвертируем Y для совпадения координат холста
 
-            const normX = dirX / len;
-            const normY = dirY / len;
+            const len = Math.sqrt(targetScreenRelativeX * targetScreenRelativeX + targetScreenRelativeY * targetScreenRelativeY) || 1;
+            const unitX = targetScreenRelativeX / len;
+            const unitY = targetScreenRelativeY / len;
 
-            // Длина палки-указателя
+            // Точка выхода с нужного края панели (левого или правого) в зависимости от положения цели
+            const startX = (data.relX < 0) ? cx : cx + w;
+            const startY = cardCenterY;
+
+            // Длина палочки-указателя
             const lineLength = 110;
-            const endX = startX + normX * lineLength;
-            const endY = startY + normY * lineLength;
+            const endX = startX + unitX * lineLength;
+            const endY = startY + unitY * lineLength;
 
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             ctx.lineTo(endX, endY);
             ctx.stroke();
-            // Точка на конце убрана!
             ctx.restore();
 
             // --- ОСНОВНАЯ ИНФО-ПАНЕЛЬ ---
